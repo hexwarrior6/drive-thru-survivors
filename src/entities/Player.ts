@@ -3,6 +3,7 @@ import { CAR_Y } from '../config';
 import { DriftPhysics } from '../systems/DriftPhysics';
 
 export class Player {
+  baseY = CAR_Y;
   readonly physics = new DriftPhysics();
   readonly sprite: Phaser.GameObjects.Image;
   private shadow: Phaser.GameObjects.Ellipse;
@@ -14,7 +15,7 @@ export class Player {
     const p = this.physics;
     const x = p.previousX + (p.x - p.previousX) * alpha;
     const heading = p.previousHeading + (p.heading - p.previousHeading) * alpha;
-    this.sprite.setPosition(x, CAR_Y + kick).setRotation(heading);
-    this.shadow.setPosition(x + 4, CAR_Y + 8).setRotation(heading);
+    this.sprite.setPosition(x, this.baseY + kick).setRotation(heading);
+    this.shadow.setPosition(x + 4, this.baseY + 8).setRotation(heading);
   }
 }

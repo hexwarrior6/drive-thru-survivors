@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BASE_SPEED, CAR_Y, FIXED_DT, HEIGHT, ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
+import { BASE_SPEED, FIXED_DT, ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
 import { C, TIER_COLORS } from '../data/colors';
 import { Player } from '../entities/Player';
 import { ParticleManager } from '../effects/ParticleManager';
@@ -8,6 +8,7 @@ import { ScreenShake } from '../effects/ScreenShake';
 import { TrackGenerator } from '../systems/TrackGenerator';
 import { MobileControls } from '../ui/MobileControls';
 import { HUD } from '../ui/HUD';
+import { getCarY, updateCarY } from '../ui/RaceLayout';
 import { clamp } from '../utils/math';
 
 export class GameScene extends Phaser.Scene {
@@ -32,6 +33,7 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.accumulator = this.elapsed = this.hudTick = this.kick = 0;
     this.paused = false;
+    document.body.classList.add('is-driving');
     this.shake = new ScreenShake();
     this.cameras.main.setScroll(0, 0).setZoom(1);
     this.track = new TrackGenerator(this);
@@ -56,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     document.getElementById('hud')!.classList.remove('hidden');
     document.getElementById('drive-ui')!.classList.remove('hidden');
     document.getElementById('pause-panel')!.classList.add('hidden');
+    updateCarY(this.scale.height);
     this.hud.update(this.player.physics, 0);
     this.events.once('shutdown', () => { this.abort.abort(); this.inputControls.destroy(); this.audio.destroy(); });
   }
@@ -72,6 +75,7 @@ export class GameScene extends Phaser.Scene {
     document.getElementById('pause-panel')!.classList.toggle('hidden', !this.paused);
     document.getElementById('drive-ui')!.classList.toggle('hidden', this.paused);
     document.getElementById('pause')!.setAttribute('aria-label', this.paused ? '继续游戏' : '暂停游戏');
+    updateCarY(this.scale.height);
     (document.activeElement as HTMLElement)?.blur();
   }
   private fixedUpdate(): void {
@@ -79,7 +83,7 @@ export class GameScene extends Phaser.Scene {
     p.step(this.inputControls.sample(), FIXED_DT);
     this.elapsed += FIXED_DT;
     this.track.step(Math.max(0, -p.vy) * FIXED_DT);
-    this.particles.update(FIXED_DT, Math.max(0, -p.vy) * 0.55);
+    this.particles.update(FIXED_DT, Math.max(0, -p.vy) * 0.55, this.scale.height);
     this.kick *= 0.84;
     if (p.released > 0 || p.didBoost) {
       this.kick = p.didBoost ? 9 : 4 + p.released * 2;
@@ -91,25 +95,26 @@ export class GameScene extends Phaser.Scene {
       if (!this.reducedMotion) this.shake.trigger(4, 0.1);
       this.audio.impact(); this.hud.showNotice('擦到护栏了 · 反打方向试试');
       const x = p.hitWall < 0 ? ROAD_LEFT : ROAD_RIGHT;
-      for (let i = 0; i < 18; i++) this.particles.emit(x, CAR_Y + (Math.random() - 0.5) * 30, C.gold, -p.hitWall * (40 + Math.random() * 150), (Math.random() - 0.5) * 200, 0.3, 3 + Math.random() * 3);
+      for (let i = 0; i < 18; i++) this.particles.emit(x, this.player.baseY + (Math.random() - 0.5) * 30, C.gold, -p.hitWall * (40 + Math.random() * 150), (Math.random() - 0.5) * 200, 0.3, 3 + Math.random() * 3);
     }
     if (p.drifting) {
       const cos = Math.cos(p.heading), sin = Math.sin(p.heading);
       for (let side = -1; side <= 1; side += 2) {
         const x = p.x + side * 22 * cos - 24 * sin;
-        const y = CAR_Y + 24 * cos + side * 22 * sin;
+        const y = this.player.baseY + 24 * cos + side * 22 * sin;
         this.particles.emit(x, y, 0xd9ddd0, -p.vx * 0.15 + (Math.random() - 0.5) * 35, 20, 0.5, 7 + Math.random() * 5, true);
         if (p.tier > 0) this.particles.emit(x, y, TIER_COLORS[p.tier], (Math.random() - 0.5) * 130, 40 + Math.random() * 95, 0.2, 2 + Math.random() * 3);
       }
     }
     if (p.nitroTime > 0 || p.pulseTime > 0) {
-      for (let i = 0; i < 3; i++) this.particles.emit(p.x - Math.sin(p.heading) * 31 + (Math.random() - 0.5) * 17, CAR_Y + Math.cos(p.heading) * 32, i === 0 ? C.blue : C.orange, -p.vx * 0.2, 100 + Math.random() * 120, 0.3, 5 + Math.random() * 8);
+      for (let i = 0; i < 3; i++) this.particles.emit(p.x - Math.sin(p.heading) * 31 + (Math.random() - 0.5) * 17, this.player.baseY + Math.cos(p.heading) * 32, i === 0 ? C.blue : C.orange, -p.vx * 0.2, 100 + Math.random() * 120, 0.3, 5 + Math.random() * 8);
     }
     this.audio.update(p.speed, p.lateralSpeed, p.drifting);
     this.hudTick += FIXED_DT;
     if (this.hudTick >= 0.08) { this.hud.update(p, this.hudTick); this.hudTick = 0; }
   }
   update(_time: number, delta: number): void {
+    this.player.baseY = getCarY();
     if (this.paused) return;
     // Bound catch-up work after stalls: never spiral or charge a background drift.
     this.accumulator += Math.min(delta / 1000, 0.1);
@@ -128,7 +133,7 @@ export class GameScene extends Phaser.Scene {
       this.skid.lineStyle(3, 0x2d3934, 0.25);
       for (let side = -1; side <= 1; side += 2) {
         const x = p.x + side * 20;
-        this.skid.lineBetween(x, CAR_Y + 20, x - p.lateralSpeed * 0.12, CAR_Y + 70);
+        this.skid.lineBetween(x, this.player.baseY + 20, x - p.lateralSpeed * 0.12, this.player.baseY + 70);
       }
     }
     if (this.reducedMotion) return;
@@ -137,7 +142,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < 24; i++) {
       const right = i % 2 === 0;
       const x = right ? WIDTH - 14 - (i % 5) * 5 : 14 + (i % 5) * 5;
-      const y = (i * 83 + this.elapsed * p.speed * 1.6) % HEIGHT;
+      const y = (i * 83 + this.elapsed * p.speed * 1.6) % this.scale.height;
       const length = 16 + strength * 85;
       this.lines.lineBetween(x, y, x + (right ? -5 : 5), y - length);
     }

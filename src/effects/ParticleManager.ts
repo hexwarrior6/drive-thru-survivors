@@ -23,14 +23,14 @@ export class ParticleManager {
       return;
     }
   }
-  update(dt: number, scroll: number): void {
+  update(dt: number, scroll: number, height = HEIGHT): void {
     this.activeCount = 0;
     for (let i = 0; i < this.pool.length; i++) {
       const p = this.pool[i]; if (p.life <= 0) continue;
       p.life -= dt;
       p.image.x += p.vx * dt;
       p.image.y += (p.vy + scroll) * dt;
-      if (p.life <= 0 || p.image.y > HEIGHT + 30 || p.image.x < -30 || p.image.x > WIDTH + 30) {
+      if (p.life <= 0 || p.image.y > height + 30 || p.image.x < -30 || p.image.x > WIDTH + 30) {
         p.life = 0; p.image.setVisible(false); continue;
       }
       this.activeCount++;

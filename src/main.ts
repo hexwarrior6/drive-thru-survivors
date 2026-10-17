@@ -4,6 +4,7 @@ import { WIDTH, HEIGHT } from './config';
 import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { GameScene } from './scenes/GameScene';
+import { installRaceLayout } from './ui/RaceLayout';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: WIDTH, height: HEIGHT,
@@ -13,12 +14,14 @@ const game = new Phaser.Game({
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: [BootScene, TitleScene, GameScene],
 });
-if (import.meta.hot) import.meta.hot.dispose(() => game.destroy(true));
+const disposeLayout = installRaceLayout(game);
+if (import.meta.hot) import.meta.hot.dispose(() => { disposeLayout(); game.destroy(true); });
 // A read-only development probe supports physics/renderer QA without shipping a game-control API.
 if (import.meta.env.DEV) Object.defineProperty(window, '__driveThru', { configurable: true, get: () => {
   const scene = game.scene.getScene('Game') as GameScene | undefined;
   const p = scene?.player?.physics;
   return { renderer: game.renderer?.type === Phaser.WEBGL ? 'WebGL' : 'Canvas',
+    viewHeight: game.scale.height, carY: scene?.player?.baseY,
     scene: game.scene.isActive('Game') ? 'Game' : 'Title', paused: scene?.paused,
     x: p?.x, heading: p?.heading, vx: p?.vx, vy: p?.vy, speed: p?.speed, charge: p?.charge,
     tier: p?.tier, drifting: p?.drifting, nitro: p?.nitro, nitroTime: p?.nitroTime,
