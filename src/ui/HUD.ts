@@ -8,9 +8,12 @@ export class HUD {
   private charge = get('charge-fill'); private label = get('drift-label'); private tier = get('tier');
   private drifts = get('drift-count'); private purples = get('purple-count');
   private boostButton = document.querySelector<HTMLButtonElement>('[data-drive="boost"]')!;
+  private road = get('road-name'); private turn = get('road-turn');
   private notice = ''; private noticeTime = 0;
   showNotice(text: string, duration = 1): void { this.notice = text; this.noticeTime = duration; }
-  update(p: DriftPhysics, dt: number): void {
+  update(p: DriftPhysics, dt: number, section = '起步直道', upcoming = 0): void {
+    this.road.textContent = section;
+    this.turn.textContent = upcoming > 0 ? '前方右弯 ↗' : upcoming < 0 ? '↖ 前方左弯' : '↑ 保持走线';
     this.noticeTime = Math.max(0, this.noticeTime - dt);
     this.speed.textContent = Math.round(p.speed * 0.52).toString().padStart(3, '0');
     this.distance.textContent = `${(p.distance / 1000).toFixed(2)} km`;

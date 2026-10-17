@@ -9,6 +9,8 @@ export function tierForCharge(seconds: number): DriftTier {
 const PULSES = [0, 0.15, 0.25, 0.4];
 /** Pure fixed-step model. Heading H and world-space velocity V remain independent. */
 export class DriftPhysics {
+  progress = 0;
+  previousProgress = 0;
   x = 225;
   previousX = 225;
   heading = 0;
@@ -36,7 +38,8 @@ export class DriftPhysics {
   private wallCooldown = 0;
   private driftSign = 1;
 
-  step(input: DriveInput, dt: number): void {
+  step(input: DriveInput, dt: number, curvature = 0): void {
+    this.previousProgress = this.progress;
     this.previousX = this.x;
     this.previousHeading = this.heading;
     this.released = 0;
@@ -76,6 +79,15 @@ export class DriftPhysics {
       this.charge += dt;
       this.tier = tierForCharge(this.charge);
     }
+    // Rotate both vectors into the road's new tangent frame. This produces
+    // outward drift on a bend without adding a second artificial lateral force.
+    const advance = Math.max(0, -this.vy) * dt;
+    const turn = curvature * advance;
+    const roadCos = Math.cos(turn), roadSin = Math.sin(turn);
+    const oldVX = this.vx;
+    this.vx = oldVX * roadCos + this.vy * roadSin;
+    this.vy = -oldVX * roadSin + this.vy * roadCos;
+    this.heading -= turn;
     // Steering rotates the body first; lower lateral drag preserves the old V.
     const targetHeading = this.drifting
       ? input.steer * 0.52 + this.driftSign * 0.14
@@ -121,6 +133,7 @@ export class DriftPhysics {
       }
     }
     this.speed = Math.hypot(this.vx, this.vy);
+    this.progress += Math.max(0, -this.vy) * dt;
     this.distance += Math.max(0, -this.vy) * 0.52 / 3.6 * dt;
   }
 }

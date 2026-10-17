@@ -1,41 +1,53 @@
 import Phaser from 'phaser';
-import { HEIGHT, WIDTH } from '../config';
+import { WIDTH } from '../config';
+import type { TrackProjection } from '../systems/TrackProjection';
 
-interface Particle { image: Phaser.GameObjects.Image; vx: number; vy: number; life: number; maxLife: number; size: number; smoke: boolean }
-/** Fixed capacity, preallocated sprites. Saturation drops new particles, never grows. */
+interface Particle {
+  image: Phaser.GameObjects.Image;
+  lateral: number; progress: number; vx: number; vz: number;
+  life: number; maxLife: number; size: number; smoke: boolean;
+}
+/** Particles live in road coordinates; all 512 sprites are allocated at boot. */
 export class ParticleManager {
   private pool: Particle[] = [];
   private cursor = 0;
   activeCount = 0;
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, private projection: TrackProjection) {
     for (let i = 0; i < 512; i++) this.pool.push({
-      image: scene.add.image(0, 0, 'particle').setVisible(false).setDepth(4),
-      vx: 0, vy: 0, life: 0, maxLife: 0, size: 0, smoke: false,
+      image: scene.add.image(0, 0, 'particle').setVisible(false).setDepth(30),
+      lateral: 0, progress: 0, vx: 0, vz: 0, life: 0, maxLife: 0, size: 0, smoke: false,
     });
   }
-  emit(x: number, y: number, color: number, vx: number, vy: number, life: number, size: number, smoke = false): void {
+  emit(lateral: number, progress: number, color: number, vx: number, vz: number, life: number, size: number, smoke = false): void {
     for (let i = 0; i < this.pool.length; i++) {
       this.cursor = (this.cursor + 1) % this.pool.length;
       const p = this.pool[this.cursor];
       if (p.life > 0) continue;
-      p.vx = vx; p.vy = vy; p.life = p.maxLife = life; p.size = size; p.smoke = smoke;
-      p.image.setPosition(x, y).setTint(color).setAlpha(1).setScale(size / 16).setVisible(true);
+      p.lateral = lateral; p.progress = progress; p.vx = vx; p.vz = vz;
+      p.life = p.maxLife = life; p.size = size; p.smoke = smoke;
+      p.image.setTint(color);
       return;
     }
   }
-  update(dt: number, scroll: number, height = HEIGHT): void {
+  update(dt: number): void {
     this.activeCount = 0;
     for (let i = 0; i < this.pool.length; i++) {
       const p = this.pool[i]; if (p.life <= 0) continue;
-      p.life -= dt;
-      p.image.x += p.vx * dt;
-      p.image.y += (p.vy + scroll) * dt;
-      if (p.life <= 0 || p.image.y > height + 30 || p.image.x < -30 || p.image.x > WIDTH + 30) {
-        p.life = 0; p.image.setVisible(false); continue;
-      }
+      p.life -= dt; p.lateral += p.vx * dt; p.progress += p.vz * dt;
+      if (p.life <= 0) { p.life = 0; p.image.setVisible(false); continue; }
       this.activeCount++;
-      p.image.setAlpha((p.life / p.maxLife) * (p.smoke ? 0.38 : 0.95));
-      p.image.setScale(p.size / 16 * (p.smoke ? 2 - p.life / p.maxLife : p.life / p.maxLife));
+    }
+  }
+  draw(): void {
+    const projection = this.projection;
+    for (let i = 0; i < this.pool.length; i++) {
+      const p = this.pool[i]; if (p.life <= 0) continue;
+      projection.project(p.progress, p.lateral);
+      const ratio = p.life / p.maxLife;
+      p.image.setPosition(projection.x, projection.y - (p.smoke ? (1 - ratio) * 9 : 2));
+      p.image.setVisible(projection.y > 0 && projection.y < projection.viewHeight + 30 && projection.x > -30 && projection.x < WIDTH + 30);
+      p.image.setAlpha(ratio * (p.smoke ? 0.38 : 0.95));
+      p.image.setScale(p.size / 16 * projection.scale * (p.smoke ? 2 - ratio : ratio));
     }
   }
 }

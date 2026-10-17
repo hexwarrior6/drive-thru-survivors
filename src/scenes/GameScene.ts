@@ -29,6 +29,7 @@ export class GameScene extends Phaser.Scene {
   private abort!: AbortController;
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private soundButton = document.getElementById('sound')!;
+  get routeCurvature(): number { return this.track?.route.curvatureAt(this.player?.physics.progress ?? 0) ?? 0; }
   constructor() { super('Game'); }
   create(): void {
     this.accumulator = this.elapsed = this.hudTick = this.kick = 0;
@@ -39,7 +40,7 @@ export class GameScene extends Phaser.Scene {
     this.track = new TrackGenerator(this);
     this.skid = this.add.graphics().setDepth(2);
     this.lines = this.add.graphics().setDepth(6);
-    this.particles = new ParticleManager(this);
+    this.particles = new ParticleManager(this, this.track.projection);
     this.player = new Player(this);
     this.audio = new AudioSynth();
     this.audio.setMuted(this.registry.get('muted') === true);
@@ -80,10 +81,10 @@ export class GameScene extends Phaser.Scene {
   }
   private fixedUpdate(): void {
     const p = this.player.physics;
-    p.step(this.inputControls.sample(), FIXED_DT);
+    p.step(this.inputControls.sample(), FIXED_DT, this.track.route.curvatureAt(p.progress));
     this.elapsed += FIXED_DT;
-    this.track.step(Math.max(0, -p.vy) * FIXED_DT);
-    this.particles.update(FIXED_DT, Math.max(0, -p.vy) * 0.55, this.scale.height);
+    this.track.setProgress(p.previousProgress, p.progress);
+    this.particles.update(FIXED_DT);
     this.kick *= 0.84;
     if (p.released > 0 || p.didBoost) {
       this.kick = p.didBoost ? 9 : 4 + p.released * 2;
@@ -95,23 +96,23 @@ export class GameScene extends Phaser.Scene {
       if (!this.reducedMotion) this.shake.trigger(4, 0.1);
       this.audio.impact(); this.hud.showNotice('擦到护栏了 · 反打方向试试');
       const x = p.hitWall < 0 ? ROAD_LEFT : ROAD_RIGHT;
-      for (let i = 0; i < 18; i++) this.particles.emit(x, this.player.baseY + (Math.random() - 0.5) * 30, C.gold, -p.hitWall * (40 + Math.random() * 150), (Math.random() - 0.5) * 200, 0.3, 3 + Math.random() * 3);
+      for (let i = 0; i < 18; i++) this.particles.emit(x - 225, p.progress + (Math.random() - 0.5) * 30, C.gold, -p.hitWall * (40 + Math.random() * 150), (Math.random() - 0.5) * 200, 0.3, 3 + Math.random() * 3);
     }
     if (p.drifting) {
       const cos = Math.cos(p.heading), sin = Math.sin(p.heading);
       for (let side = -1; side <= 1; side += 2) {
-        const x = p.x + side * 22 * cos - 24 * sin;
-        const y = this.player.baseY + 24 * cos + side * 22 * sin;
+        const x = p.x - 225 + side * 22 * cos - 24 * sin;
+        const y = p.progress - 24 * cos - side * 22 * sin;
         this.particles.emit(x, y, 0xd9ddd0, -p.vx * 0.15 + (Math.random() - 0.5) * 35, 20, 0.5, 7 + Math.random() * 5, true);
-        if (p.tier > 0) this.particles.emit(x, y, TIER_COLORS[p.tier], (Math.random() - 0.5) * 130, 40 + Math.random() * 95, 0.2, 2 + Math.random() * 3);
+        if (p.tier > 0) this.particles.emit(x, y, TIER_COLORS[p.tier], (Math.random() - 0.5) * 130, -40 - Math.random() * 95, 0.2, 2 + Math.random() * 3);
       }
     }
     if (p.nitroTime > 0 || p.pulseTime > 0) {
-      for (let i = 0; i < 3; i++) this.particles.emit(p.x - Math.sin(p.heading) * 31 + (Math.random() - 0.5) * 17, this.player.baseY + Math.cos(p.heading) * 32, i === 0 ? C.blue : C.orange, -p.vx * 0.2, 100 + Math.random() * 120, 0.3, 5 + Math.random() * 8);
+      for (let i = 0; i < 3; i++) this.particles.emit(p.x - 225 - Math.sin(p.heading) * 31 + (Math.random() - 0.5) * 17, p.progress - Math.cos(p.heading) * 32, i === 0 ? C.blue : C.orange, -p.vx * 0.2, -100 - Math.random() * 120, 0.3, 5 + Math.random() * 8);
     }
     this.audio.update(p.speed, p.lateralSpeed, p.drifting);
     this.hudTick += FIXED_DT;
-    if (this.hudTick >= 0.08) { this.hud.update(p, this.hudTick); this.hudTick = 0; }
+    if (this.hudTick >= 0.08) { this.hud.update(p, this.hudTick, this.track.route.sectionAt(p.progress).name, this.track.route.sectionAt(p.progress + 450).turn); this.hudTick = 0; }
   }
   update(_time: number, delta: number): void {
     this.player.baseY = getCarY();
@@ -120,7 +121,9 @@ export class GameScene extends Phaser.Scene {
     this.accumulator += Math.min(delta / 1000, 0.1);
     while (this.accumulator >= FIXED_DT) { this.fixedUpdate(); this.accumulator -= FIXED_DT; }
     const alpha = this.accumulator / FIXED_DT;
-    this.track.draw(alpha); this.player.render(alpha, this.reducedMotion ? 0 : this.kick);
+    this.track.draw(alpha, this.player.baseY);
+    this.player.render(alpha, this.reducedMotion ? 0 : this.kick, this.track.projection);
+    this.particles.draw();
     this.shake.update(this.cameras.main, delta / 1000);
     const zoomTarget = !this.reducedMotion && this.player.physics.nitroTime > 0 ? 0.97 : 1;
     this.cameras.main.zoom += (zoomTarget - this.cameras.main.zoom) * 0.06;
@@ -132,8 +135,11 @@ export class GameScene extends Phaser.Scene {
     if (p.drifting) {
       this.skid.lineStyle(3, 0x2d3934, 0.25);
       for (let side = -1; side <= 1; side += 2) {
-        const x = p.x + side * 20;
-        this.skid.lineBetween(x, this.player.baseY + 20, x - p.lateralSpeed * 0.12, this.player.baseY + 70);
+        const projection = this.track.projection;
+        projection.project(p.progress - 24, p.x - 225 + side * 20);
+        const x = projection.x, y = projection.y;
+        projection.project(p.progress - 80, p.x - 225 + side * 20 - p.lateralSpeed * 0.12);
+        this.skid.lineBetween(x, y, projection.x, projection.y);
       }
     }
     if (this.reducedMotion) return;

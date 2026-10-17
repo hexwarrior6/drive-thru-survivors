@@ -1,47 +1,81 @@
 import Phaser from 'phaser';
 import { ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
 import { C } from '../data/colors';
+import { TrackRoute } from './TrackRoute';
+import { TrackProjection } from './TrackProjection';
+
+const HALF = (ROAD_RIGHT - ROAD_LEFT) / 2;
+const COLUMNS = [-HALF - 18, -HALF - 3, -HALF, -HALF + 7, -HALF + 10, -54, -50, 50, 54, HALF - 10, HALF - 7, HALF, HALF + 3, HALF + 18];
+const ROWS = 128;
+const STEP = 28;
 
 export class TrackGenerator {
+  readonly route = new TrackRoute();
+  readonly projection = new TrackProjection(this.route);
   private graphics: Phaser.GameObjects.Graphics;
   private scenery: Phaser.GameObjects.Image[] = [];
+  private points = new Float32Array(ROWS * COLUMNS.length * 2);
   offset = 0;
   previousOffset = 0;
   constructor(private scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setDepth(0);
-    for (let i = 0; i < 12; i++) {
-      const key = i % 6 === 3 ? 'cafe' : i % 3 === 1 ? 'building' : 'tree';
-      const side = i % 2 === 0 ? 30 : 422;
-      const image = scene.add.image(side, i * 92 - 140, key).setScale(key === 'cafe' ? 0.75 : 0.8).setDepth(1);
-      this.scenery.push(image);
+    for (let i = 0; i < 36; i++) {
+      const key = i % 9 === 3 ? 'cafe' : i % 5 === 1 ? 'building' : 'tree';
+      this.scenery.push(scene.add.image(0, 0, key).setOrigin(0.5, 0.8));
     }
   }
   step(scroll: number): void { this.previousOffset = this.offset; this.offset += scroll; }
-  draw(alpha: number): void {
+  setProgress(previous: number, current: number): void { this.previousOffset = previous; this.offset = current; }
+  private band(row: number, left: number, right: number, color: number): void {
+    const stride = COLUMNS.length * 2;
+    const a = row * stride + left * 2, b = row * stride + right * 2;
+    const c = a + stride, d = b + stride;
+    const p = this.points, g = this.graphics;
+    g.fillStyle(color);
+    g.fillTriangle(p[a], p[a + 1], p[b], p[b + 1], p[c], p[c + 1]);
+    g.fillTriangle(p[c], p[c + 1], p[b], p[b + 1], p[d], p[d + 1]);
+  }
+  draw(alpha: number, carY = this.scene.scale.height * 0.68): void {
     const height = this.scene.scale.height;
     const offset = this.previousOffset + (this.offset - this.previousOffset) * alpha;
-    const g = this.graphics; g.clear();
-    g.fillStyle(C.grass); g.fillRect(-30, -30, WIDTH + 60, height + 60);
-    g.fillStyle(0xd8ebaf); g.fillRect(0, 0, 48, height); g.fillRect(402, 0, 48, height);
-    g.fillStyle(C.road); g.fillRect(ROAD_LEFT, -30, ROAD_RIGHT - ROAD_LEFT, height + 60);
-    g.fillStyle(0x535d5a, 0.5); g.fillRect(ROAD_LEFT + 10, 0, 18, height); g.fillRect(ROAD_RIGHT - 28, 0, 18, height);
-    g.fillStyle(C.lane, 0.9); g.fillRect(ROAD_LEFT + 5, 0, 3, height); g.fillRect(ROAD_RIGHT - 8, 0, 3, height);
-    const dashOffset = offset % 64;
-    for (let y = dashOffset - 64; y < height; y += 64) {
-      g.fillStyle(C.lane, 0.75); g.fillRoundedRect(172, y, 3, 28, 1); g.fillRoundedRect(276, y, 3, 28, 1);
+    const projection = this.projection;
+    projection.configure(offset, height, carY);
+    const g = this.graphics;
+    g.clear(); g.fillStyle(C.grass); g.fillRect(-30, -30, WIDTH + 60, height + 60);
+    // A subdued horizon keeps the perspective legible, with no external assets.
+    g.fillStyle(0xd8ebaf); g.fillRect(-30, -30, WIDTH + 60, 115);
+    g.fillStyle(0xd0e2a2); g.fillEllipse(65, 85, 300, 110); g.fillEllipse(370, 85, 330, 110);
+    const base = Math.floor((offset - 420) / STEP) * STEP;
+    for (let row = 0; row < ROWS; row++) {
+      projection.setSection(base + row * STEP);
+      for (let col = 0; col < COLUMNS.length; col++) {
+        projection.projectLateral(COLUMNS[col]);
+        const index = (row * COLUMNS.length + col) * 2;
+        this.points[index] = projection.x; this.points[index + 1] = projection.y;
+      }
     }
-    for (let y = offset % 32 - 32; y < height; y += 32) {
-      g.fillStyle(C.panel); g.fillRect(58, y, 10, 32); g.fillRect(382, y, 10, 32);
-      g.fillStyle(C.car); g.fillRect(58, y, 10, 16); g.fillRect(382, y, 10, 16);
+    for (let row = ROWS - 2; row >= 0; row--) {
+      const s = base + row * STEP;
+      const curb = Math.floor(s / 56) % 2 === 0 ? C.car : C.panel;
+      this.band(row, 0, 13, 0x91b170);
+      this.band(row, 2, 11, Math.floor(s / 112) % 2 === 0 ? C.road : 0x596260);
+      this.band(row, 0, 1, curb); this.band(row, 12, 13, curb);
+      this.band(row, 1, 2, C.border); this.band(row, 11, 12, C.border);
+      this.band(row, 3, 4, C.lane); this.band(row, 9, 10, C.lane);
+      if (Math.floor(s / STEP) % 3 === 0) {
+        this.band(row, 5, 6, C.lane); this.band(row, 7, 8, C.lane);
+      }
     }
-    g.fillStyle(C.border); g.fillRect(54, 0, 3, height); g.fillRect(393, 0, 3, height);
+    const period = 18 * 180;
     for (let i = 0; i < this.scenery.length; i++) {
-      this.scenery[i].y = ((i * (height + 300) / this.scenery.length + offset * 0.86) % (height + 300)) - 145;
-    }
-    // Roadside route markers scroll with the road rather than with the HUD.
-    for (let y = offset % 220 - 220; y < height; y += 220) {
-      g.fillStyle(C.panel); g.fillRoundedRect(39, y, 10, 20, 3);
-      g.fillStyle(C.gold); g.fillRect(41, y + 3, 6, 5);
+      const relative = ((Math.floor(i / 2) * 180 - offset + 420) % period + period) % period - 420;
+      const side = i % 2 === 0 ? -1 : 1;
+      projection.project(offset + relative, side * (HALF + 57 + i % 3 * 16));
+      const image = this.scenery[i], scale = projection.scale * 0.86;
+      image.setPosition(projection.x, projection.y).setScale(scale)
+        .setAlpha(Math.min(1, 0.65 + projection.scale * 0.4))
+        .setDepth(10 + projection.y / 100)
+        .setVisible(projection.x > -130 && projection.x < WIDTH + 130 && projection.y > 60 && projection.y < height + 150);
     }
   }
 }

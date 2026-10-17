@@ -23,6 +23,7 @@ if (import.meta.env.DEV) Object.defineProperty(window, '__driveThru', { configur
   return { renderer: game.renderer?.type === Phaser.WEBGL ? 'WebGL' : 'Canvas',
     viewHeight: game.scale.height, carY: scene?.player?.baseY,
     scene: game.scene.isActive('Game') ? 'Game' : 'Title', paused: scene?.paused,
+    progress: p?.progress, curvature: scene?.routeCurvature,
     x: p?.x, heading: p?.heading, vx: p?.vx, vy: p?.vy, speed: p?.speed, charge: p?.charge,
     tier: p?.tier, drifting: p?.drifting, nitro: p?.nitro, nitroTime: p?.nitroTime,
     driftCount: p?.driftCount, purpleCount: p?.purpleCount, wallHits: p?.wallHits,

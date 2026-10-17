@@ -1,21 +1,32 @@
 import Phaser from 'phaser';
 import { CAR_Y } from '../config';
 import { DriftPhysics } from '../systems/DriftPhysics';
+import type { TrackProjection } from '../systems/TrackProjection';
 
 export class Player {
   baseY = CAR_Y;
   readonly physics = new DriftPhysics();
   readonly sprite: Phaser.GameObjects.Image;
+  private chassis: Phaser.GameObjects.Image;
   private shadow: Phaser.GameObjects.Ellipse;
   constructor(scene: Phaser.Scene) {
-    this.shadow = scene.add.ellipse(225, CAR_Y + 8, 56, 74, 0x263c32, 0.23).setDepth(3);
-    this.sprite = scene.add.image(225, CAR_Y, 'car').setDepth(5);
+    this.shadow = scene.add.ellipse(225, CAR_Y + 10, 58, 58, 0x263c32, 0.24);
+    this.chassis = scene.add.image(225, CAR_Y + 5, 'car').setTint(0xa74b32);
+    this.sprite = scene.add.image(225, CAR_Y, 'car');
   }
-  render(alpha: number, kick: number): void {
+  render(alpha: number, kick: number, projection: TrackProjection): void {
     const p = this.physics;
     const x = p.previousX + (p.x - p.previousX) * alpha;
     const heading = p.previousHeading + (p.heading - p.previousHeading) * alpha;
-    this.sprite.setPosition(x, this.baseY + kick).setRotation(heading);
-    this.shadow.setPosition(x + 4, this.baseY + 8).setRotation(heading);
+    const progress = p.previousProgress + (p.progress - p.previousProgress) * alpha;
+    projection.project(progress, x - 225);
+    const angle = Math.atan2(Math.sin(heading), Math.cos(heading) * 0.85);
+    const scale = projection.scale, depth = 10 + projection.y / 100;
+    this.sprite.setPosition(projection.x, projection.y - 5 + kick).setRotation(angle)
+      .setScale(scale, scale * 0.85).setDepth(depth + 0.02);
+    this.chassis.setPosition(projection.x, projection.y + 1 + kick).setRotation(angle)
+      .setScale(scale * 1.01, scale * 0.85).setDepth(depth + 0.01);
+    this.shadow.setPosition(projection.x + 5, projection.y + 10).setRotation(angle)
+      .setScale(scale).setDepth(depth);
   }
 }

@@ -1,16 +1,16 @@
 import Phaser from 'phaser';
-import { CAR_Y } from '../config';
+import { Player } from '../entities/Player';
 import { TrackGenerator } from '../systems/TrackGenerator';
 
 export class TitleScene extends Phaser.Scene {
   private track!: TrackGenerator;
-  private car!: Phaser.GameObjects.Image;
+  private car!: Player;
   private abort?: AbortController;
   constructor() { super('Title'); }
   create(): void {
     document.body.classList.remove('is-driving');
     this.track = new TrackGenerator(this);
-    this.car = this.add.image(225, CAR_Y + 40, 'car').setDepth(5).setScale(1.15);
+    this.car = new Player(this);
     document.getElementById('title')!.classList.remove('hidden');
     this.abort = new AbortController();
     document.getElementById('start')!.addEventListener('click', () => {
@@ -28,7 +28,10 @@ export class TitleScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.abort?.abort());
   }
   update(time: number, delta: number): void {
-    this.track.step(Math.min(delta, 50) / 1000 * 80); this.track.draw(1);
-    this.car.setPosition(225, this.scale.height * 0.7).setRotation(Math.sin(time / 1000) * 0.045);
+    this.track.step(Math.min(delta, 50) / 1000 * 100);
+    this.track.draw(1, this.scale.height * 0.7);
+    this.car.physics.progress = this.car.physics.previousProgress = this.track.offset;
+    this.car.physics.heading = this.car.physics.previousHeading = Math.sin(time / 1000) * 0.045;
+    this.car.render(1, 0, this.track.projection);
   }
 }

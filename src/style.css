@@ -251,3 +251,5 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
   * { scroll-behavior:auto!important; transition:none!important; }
 
 }
+.road-readout { display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; letter-spacing:1px; color:#6b795b; }
+.road-readout b { color:#b75d36; font-size:10px; }
