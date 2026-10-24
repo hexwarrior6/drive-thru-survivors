@@ -13,14 +13,12 @@ export class CombatView {
   visibleEnemies = 0;
   visibleBullets = 0;
   private readonly turret: Phaser.GameObjects.Image;
-  readonly pitSign: Phaser.GameObjects.Image;
   constructor(scene: Phaser.Scene, private readonly model: CombatSystem, private readonly projection: TrackProjection) {
     for (let i = 0; i < model.enemies.capacity; i++) this.enemies.push(scene.add.image(0, 0, 'cone').setVisible(false));
     for (let i = 0; i < model.bullets.capacity; i++) this.bullets.push(scene.add.image(0, 0, 'bullet').setVisible(false));
     for (let i = 0; i < model.coins.capacity; i++) this.coins.push(scene.add.image(0, 0, 'coin').setVisible(false));
     for (let i = 0; i < model.damage.capacity * 3; i++) this.digits.push(scene.add.image(0, 0, 'digit0').setVisible(false).setDepth(29));
     this.turret = scene.add.image(0, 0, 'turret').setOrigin(0.5, 0.68);
-    this.pitSign = scene.add.image(0, 0, 'cafe').setVisible(false);
   }
   private place(image: Phaser.GameObjects.Image, x: number, z: number, scale: number): void {
     const p = this.projection; p.project(z, x);
@@ -77,9 +75,6 @@ export class CombatView {
     this.turret.setPosition(sx, sy - 5 + kick).setRotation(angle).setScale(scale, scale * 0.85)
       .setDepth(10 + sy / 100 + 0.05).setAlpha(this.model.muzzleFlash > 0 ? 0.7 : 1);
   }
-  drawPit(progress: number, visible: boolean, time: number): void {
-    this.place(this.pitSign, 188, progress + 180, 1.1);
-    this.pitSign.setVisible(visible).setAlpha(0.75 + Math.sin(time * 8) * 0.25);
-  }
+
 }
 const DIGITS = ['digit0', 'digit1', 'digit2', 'digit3', 'digit4', 'digit5', 'digit6', 'digit7', 'digit8', 'digit9'];

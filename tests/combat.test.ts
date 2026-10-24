@@ -5,6 +5,7 @@ import ts from 'typescript';
 import { StressMeter } from '../src/combat/StressMeter';
 import { ObjectPool } from '../src/utils/ObjectPool';
 import { CombatSystem, MAGNET_RANGE, WEAPON_RANGE, SHOT_INTERVAL, interceptTime } from '../src/combat/CombatSystem';
+import { PIT_ENTRY_SECONDS, PIT_PLAYER_X } from '../src/systems/PitStopLayout';
 import { WaveSystem } from '../src/systems/WaveSystem';
 import { DriftPhysics } from '../src/systems/DriftPhysics';
 import { BASE_SPEED, FIXED_DT } from '../src/config';
@@ -154,14 +155,14 @@ test('45-second wave freezes combat, eases into pit, grants reward once, next wa
   assert.equal(w.state, 'combat'); w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'entering'); assert.equal(c.enemies.activeCount, 0); assert.equal(c.money, 12);
   const start = p.progress;
-  for (let i = 0; i < 91; i++) w.step(p, c, FIXED_DT);
-  assert.equal(w.state, 'pit'); assert.equal(p.x, 325); assert.equal(p.speed, 0); assert.ok(p.progress > start);
+  for (let i = 0; i < Math.ceil(PIT_ENTRY_SECONDS * 60) + 2; i++) w.step(p, c, FIXED_DT);
+  assert.equal(w.state, 'pit'); assert.equal(p.x, PIT_PLAYER_X); assert.equal(p.speed, 0); assert.ok(p.progress > start);
   for (let i = 0; i < 90; i++) w.step(p, c, FIXED_DT);
-  assert.equal(c.money, 12); w.next(c); assert.equal(w.remaining, 48);
-  w.number = 10; w.state = 'pit'; w.next(c); assert.equal(w.remaining, 60);
+  assert.equal(c.money, 12); w.next(c, p); assert.equal(w.remaining, 48);
+  w.number = 10; w.state = 'pit'; w.next(c, p); assert.equal(w.remaining, 60);
 });
 test('combat hot paths contain no object construction, literals or closure allocation', () => {
-  for (const path of ['src/combat/CombatSystem.ts', 'src/combat/CombatView.ts', 'src/systems/WaveSystem.ts', 'src/effects/ParticleManager.ts', 'src/scenes/GameScene.ts']) {
+  for (const path of ['src/combat/CombatSystem.ts', 'src/combat/CombatView.ts', 'src/systems/PitStopView.ts', 'src/systems/WaveSystem.ts', 'src/effects/ParticleManager.ts', 'src/scenes/GameScene.ts']) {
     const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
     const scan = (node: ts.Node) => {
       assert.ok(!ts.isNewExpression(node) && !ts.isObjectLiteralExpression(node) && !ts.isArrayLiteralExpression(node) && !ts.isArrowFunction(node) && !ts.isFunctionExpression(node), `${path}: allocation in hot method: ${node.getText(source).slice(0, 70)}`);

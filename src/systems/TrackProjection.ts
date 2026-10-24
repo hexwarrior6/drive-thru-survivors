@@ -10,6 +10,7 @@ export class TrackProjection {
   carY = 544;
   private cameraX = 0;
   private cameraZ = 0;
+  private cameraSide = 0;
   private cos = 1;
   private sin = 0;
   private sectionX = 0;
@@ -17,8 +18,8 @@ export class TrackProjection {
   private sectionCos = 1;
   private sectionSin = 0;
   constructor(readonly route: TrackRoute) {}
-  configure(progress: number, height: number, carY: number): void {
-    this.viewHeight = height; this.carY = carY;
+  configure(progress: number, height: number, carY: number, cameraSide = 0): void {
+    this.viewHeight = height; this.carY = carY; this.cameraSide = cameraSide;
     this.route.sample(progress);
     this.cameraX = this.route.x; this.cameraZ = this.route.z;
     this.cos = Math.cos(this.route.heading); this.sin = Math.sin(this.route.heading);
@@ -31,7 +32,7 @@ export class TrackProjection {
   projectLateral(lateral: number): void {
     const dx = this.sectionX + this.sectionCos * lateral - this.cameraX;
     const dz = this.sectionZ - this.sectionSin * lateral - this.cameraZ;
-    const side = dx * this.cos - dz * this.sin;
+    const side = dx * this.cos - dz * this.sin - this.cameraSide;
     const forward = dx * this.sin + dz * this.cos;
     this.scale = 1100 / Math.max(260, 1100 + forward);
     this.x = WIDTH / 2 + side * this.scale;

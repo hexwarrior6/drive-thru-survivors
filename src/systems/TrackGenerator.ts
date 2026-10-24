@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
 import { C } from '../data/colors';
 import { TrackRoute } from './TrackRoute';
+import { pitDividerVisible } from './PitStopLayout';
 import { TrackProjection } from './TrackProjection';
 
 const HALF = (ROAD_RIGHT - ROAD_LEFT) / 2;
@@ -20,7 +21,7 @@ export class TrackGenerator {
   constructor(private scene: Phaser.Scene) {
     this.graphics = scene.add.graphics().setDepth(0);
     for (let i = 0; i < 36; i++) {
-      const key = i % 9 === 3 ? 'cafe' : i % 5 === 1 ? 'building' : 'tree';
+      const key = i % 5 === 1 ? 'building' : 'tree';
       this.scenery.push(scene.add.image(0, 0, key).setOrigin(0.5, 0.8));
     }
   }
@@ -35,11 +36,11 @@ export class TrackGenerator {
     g.fillTriangle(p[a], p[a + 1], p[b], p[b + 1], p[c], p[c + 1]);
     g.fillTriangle(p[c], p[c + 1], p[b], p[b + 1], p[d], p[d + 1]);
   }
-  draw(alpha: number, carY = this.scene.scale.height * 0.68): void {
+  draw(alpha: number, carY = this.scene.scale.height * 0.68, cameraSide = 0, pitProgress = NaN): void {
     const height = this.scene.scale.height;
     const offset = this.previousOffset + (this.offset - this.previousOffset) * alpha;
     const projection = this.projection;
-    projection.configure(offset, height, carY);
+    projection.configure(offset, height, carY, cameraSide);
     const g = this.graphics;
     g.clear(); g.fillStyle(C.grass); g.fillRect(-30, -30, WIDTH + 60, height + 60);
     // A subdued horizon keeps the perspective legible, with no external assets.
@@ -47,7 +48,8 @@ export class TrackGenerator {
     g.fillStyle(0xd0e2a2); g.fillEllipse(65, 85, 300, 110); g.fillEllipse(370, 85, 330, 110);
     const base = Math.floor((offset - 420) / STEP) * STEP;
     for (let row = 0; row < ROWS; row++) {
-      projection.setSection(base + row * STEP);
+      const progress = base + row * STEP;
+      projection.setSection(progress);
       for (let col = 0; col < COLUMNS.length; col++) {
         projection.projectLateral(COLUMNS[col]);
         const index = (row * COLUMNS.length + col) * 2;
@@ -63,7 +65,8 @@ export class TrackGenerator {
       this.band(row, 1, 2, C.border); this.band(row, 11, 12, C.border);
       this.band(row, 3, 4, C.lane); this.band(row, 9, 10, C.lane);
       if (Math.floor(s / STEP) % 3 === 0) {
-        this.band(row, 5, 6, C.lane); this.band(row, 7, 8, C.lane);
+        this.band(row, 5, 6, C.lane);
+        if (!pitDividerVisible(s - pitProgress)) this.band(row, 7, 8, C.lane);
       }
     }
     const period = 18 * 180;
@@ -75,7 +78,8 @@ export class TrackGenerator {
       image.setPosition(projection.x, projection.y).setScale(scale)
         .setAlpha(Math.min(1, 0.65 + projection.scale * 0.4))
         .setDepth(10 + projection.y / 100)
-        .setVisible(projection.x > -130 && projection.x < WIDTH + 130 && projection.y > 60 && projection.y < height + 150);
+        .setVisible(projection.x > -130 && projection.x < WIDTH + 130 && projection.y > 60 && projection.y < height + 150
+          && !(side > 0 && Number.isFinite(pitProgress) && offset + relative > pitProgress - 800 && offset + relative < pitProgress + 480));
     }
   }
 }

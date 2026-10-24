@@ -279,3 +279,10 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
   .charge-card .cruise-check { width:20px; height:20px; border-radius:6px; }
   .charge-card .cruise-hint { display:none; }
 }
+
+/* Keep the world-space entry and service window visible above the stop panel. */
+.pit-panel { top:auto; bottom:18px; padding:13px 17px; }
+.pit-panel h2 { font-size:18px; margin:7px 0; }
+.pit-panel p { margin:2px 0; line-height:1.4; }
+.pit-panel small { margin:6px 0 10px; font-size:9px; }
+.pit-panel .primary { padding:10px 16px; }

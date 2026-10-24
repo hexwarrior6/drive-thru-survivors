@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { createPitTextures } from '../data/createPitTextures';
 import { C } from '../data/colors';
 
 export class BootScene extends Phaser.Scene {
@@ -89,6 +90,7 @@ export class BootScene extends Phaser.Scene {
       hit.context.drawImage(source, 0, 0); hit.context.globalCompositeOperation = 'source-in';
       hit.context.fillStyle = '#ffffff'; hit.context.fillRect(0, 0, source.width, source.height); hit.refresh();
     }
+    createPitTextures(this);
     this.scene.start('Title');
   }
 }

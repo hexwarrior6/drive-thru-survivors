@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { CombatSystem } from '../combat/CombatSystem';
 import { StressMeter } from '../combat/StressMeter';
 import { CombatView } from '../combat/CombatView';
+import { PitStopView } from '../systems/PitStopView';
 import { WaveSystem } from '../systems/WaveSystem';
 import { BASE_SPEED, FIXED_DT, ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
 import { C, TIER_COLORS } from '../data/colors';
@@ -24,6 +25,7 @@ export class GameScene extends Phaser.Scene {
   combat!: CombatSystem;
   wave!: WaveSystem;
   combatView!: CombatView;
+  private pitView!: PitStopView;
   private pitPanel = document.getElementById('pit-panel')!;
   private disabledPanel = document.getElementById('disabled-panel')!;
   private stressFramesShown = 0;
@@ -65,6 +67,12 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this);
     this.combat = new CombatSystem(this.particles);
     this.wave = new WaveSystem();
+    this.pitView = new PitStopView(this, this.track.projection);
+    if (import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'pit') {
+      this.wave.remaining = 2.8;
+      this.player.physics.progress = this.player.physics.previousProgress = this.track.route.length - 700;
+      this.player.physics.speed = BASE_SPEED; this.player.physics.vy = -BASE_SPEED;
+    }
     this.combatView = new CombatView(this, this.combat, this.track.projection);
     this.pitPanel.classList.add('hidden'); this.disabledPanel.classList.add('hidden');
     this.audio = new AudioSynth();
@@ -77,7 +85,8 @@ export class GameScene extends Phaser.Scene {
     document.getElementById('pause')!.addEventListener('click', () => this.togglePause(), options);
     document.getElementById('resume')!.addEventListener('click', () => { this.audio.unlock(); this.togglePause(); }, options);
     document.getElementById('next-wave')!.addEventListener('click', () => {
-      this.wave.next(this.combat); this.pitPanel.classList.add('hidden');
+      this.wave.next(this.combat, this.player.physics); this.pitPanel.classList.add('hidden');
+      document.getElementById('drive-ui')!.classList.remove('hidden');
       this.inputControls.clear(); this.audio.setPaused(false);
       this.player.physics.nitro = Math.min(100, this.player.physics.nitro + 20);
       (document.activeElement as HTMLElement)?.blur();
@@ -128,8 +137,9 @@ export class GameScene extends Phaser.Scene {
     const before = this.wave.state;
     if (!this.stress) this.wave.step(p, this.combat, FIXED_DT);
     if (before !== this.wave.state) {
+      this.hud.update(p, 0);
       if (this.wave.state === 'entering') this.hud.showNotice('波次完成 · 正在驶入得来速', 3);
-      if (this.wave.state === 'pit') { this.pitPanel.classList.remove('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
+      if (this.wave.state === 'pit') { this.pitPanel.classList.remove('hidden'); document.getElementById('drive-ui')!.classList.add('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
       this.hud.updateCombat(this.combat, this.wave);
     }
     this.elapsed += FIXED_DT;
@@ -166,16 +176,20 @@ export class GameScene extends Phaser.Scene {
   }
   update(_time: number, delta: number): void {
     this.player.baseY = getCarY();
-    if (this.paused || this.wave.state === 'pit' || this.wave.state === 'disabled') return;
+    if (this.paused || this.wave.state === 'disabled') return;
     // Bound catch-up work after stalls: never spiral or charge a background drift.
-    this.accumulator += Math.min(delta / 1000, 0.1);
-    while (this.accumulator >= FIXED_DT) { this.fixedUpdate(); this.accumulator -= FIXED_DT; }
-    const alpha = this.accumulator / FIXED_DT;
-    this.track.draw(alpha, this.player.baseY);
+    if (this.wave.state !== 'pit') {
+      this.accumulator += Math.min(delta / 1000, 0.1);
+      while (this.accumulator >= FIXED_DT) { this.fixedUpdate(); this.accumulator -= FIXED_DT; }
+    } else this.accumulator = 0;
+    // Parked simulation stays frozen, but reprojection still responds to viewport changes.
+    const alpha = this.wave.state === 'pit' ? 1 : this.accumulator / FIXED_DT;
+    const pitVisible = Number.isFinite(this.wave.pitProgress) && this.player.physics.progress < this.wave.pitProgress + 1100;
+    this.track.draw(alpha, this.player.baseY, this.wave.cameraSide, pitVisible ? this.wave.pitProgress : NaN);
+    this.pitView.draw(this.wave.pitProgress, pitVisible, this.elapsed);
     this.player.render(alpha, this.reducedMotion ? 0 : this.kick, this.track.projection);
     this.combatView.draw(alpha);
     this.combatView.drawTurret(this.player.physics, alpha, this.reducedMotion ? 0 : this.kick);
-    this.combatView.drawPit(this.player.physics.progress, this.wave.remaining <= 3 || this.wave.state === 'entering', this.elapsed);
     this.particles.draw();
     this.player.sprite.setAlpha(this.combat.impact ? 0.55 : 1);
     this.shake.update(this.cameras.main, delta / 1000);

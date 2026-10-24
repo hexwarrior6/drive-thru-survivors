@@ -17,11 +17,11 @@ export class HUD {
   private healthFill = get('health-fill');
   updateCombat(c: CombatSystem, w: WaveSystem): void {
     this.wave.textContent = String(w.number).padStart(2, '0');
-    this.clock.textContent = w.state === 'combat' ? `${Math.ceil(w.remaining)}s` : w.state === 'entering' ? '进站中' : w.state === 'pit' ? '已停靠' : '已抛锚';
+    this.clock.textContent = w.state === 'combat' ? `${Math.ceil(w.remaining)}s` : w.state === 'entering' ? '进站中' : w.state === 'exiting' ? '出站中' : w.state === 'pit' ? '已停靠' : '已抛锚';
     this.money.textContent = String(c.money); this.kills.textContent = String(c.kills);
     this.health.textContent = String(c.health); this.healthFill.style.width = `${c.health}%`;
     this.healthFill.style.backgroundColor = c.health <= 20 ? '#e75239' : '#6b9d57';
-    this.tactic.textContent = c.pursuers === 0 ? '前方避障 · 等待追兵' : c.targetDistance > 0 && c.targetDistance < 90 ? '追兵贴身 · 变道或冲刺脱身' : c.targetDistance > 0 && c.targetDistance < 175 ? '近距散弹 · 聚拢追兵一起打' : '远距牵制 · 冲刺可拉开距离';
+    this.tactic.textContent = w.state === 'entering' ? '自动驶入右侧得来速' : w.state === 'exiting' ? '正在汇入主路 · 准备出发' : c.pursuers === 0 ? '前方避障 · 等待追兵' : c.targetDistance > 0 && c.targetDistance < 90 ? '追兵贴身 · 变道或冲刺脱身' : c.targetDistance > 0 && c.targetDistance < 175 ? '近距散弹 · 聚拢追兵一起打' : '远距牵制 · 冲刺可拉开距离';
     this.tactic.classList.toggle('danger', c.targetDistance > 0 && c.targetDistance < 90);
   }
   private notice = ''; private noticeTime = 0;

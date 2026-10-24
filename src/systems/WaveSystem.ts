@@ -1,7 +1,8 @@
+import { PIT_CAMERA_SIDE, PIT_ENTRY_SECONDS, PIT_EXIT_SECONDS, PIT_EXIT_DISTANCE, pitLaneCenter, smoothPit } from './PitStopLayout';
 import type { DriftPhysics } from './DriftPhysics';
 import type { CombatSystem } from '../combat/CombatSystem';
-export type WaveState = 'combat' | 'entering' | 'pit' | 'disabled';
-/** Combat freezes at the time limit; the last 1.5 seconds are an automatic pit entry. */
+export type WaveState = 'combat' | 'entering' | 'exiting' | 'pit' | 'disabled';
+/** Fixed wave clock plus guided entry and departure along the service bay. */
 export class WaveSystem {
   number = 1;
   remaining = 45;
@@ -13,27 +14,28 @@ export class WaveSystem {
   private pursuitTime = 2.5;
   private packs = 0;
   private entryX = 225;
-  private entrySpeed = 0;
-  private entryHeading = 0;
+  pitProgress = NaN;
+  cameraSide = 0;
+  private approachScheduled = false;
+  private entryProgress = 0;
+  private endProgress = 0;
   step(p: DriftPhysics, combat: CombatSystem, dt: number): void {
-    if (this.state === 'entering') {
-      p.previousX = p.x; p.previousProgress = p.progress; p.previousHeading = p.heading;
-      this.transition = Math.min(1.5, this.transition + dt);
-      const t = this.transition / 1.5, ease = t * t * (3 - 2 * t);
-      p.x = this.entryX + (325 - this.entryX) * ease;
-      p.heading = this.entryHeading * (1 - ease) + Math.sin(t * Math.PI * 2) * 0.15;
-      p.speed = this.entrySpeed * (1 - ease); p.vx = 0; p.vy = -p.speed;
-      p.progress += p.speed * dt; p.distance += p.speed * 0.52 / 3.6 * dt;
-      p.released = 0; p.hitWall = 0; p.didBoost = false;
-      p.drifting = false; p.tier = 0; p.charge = 0; p.nitroTime = p.pulseTime = 0;
-      if (t >= 1) { this.state = 'pit'; p.previousProgress = p.progress; p.previousX = p.x; p.previousHeading = p.heading = 0; }
-      return;
+    if (this.state === 'entering' || this.state === 'exiting') {
+      this.drivePit(p, dt, this.state === 'exiting'); return;
     }
     if (this.state !== 'combat') return;
     this.remaining = Math.max(0, this.remaining - dt);
     if (this.remaining < 0.00001) {
-      this.remaining = 0; this.state = 'entering'; this.entryX = p.x; this.entrySpeed = p.speed; this.entryHeading = p.heading;
+      this.remaining = 0; this.state = 'entering'; this.entryX = p.x;
+      this.entryProgress = p.progress;
+      this.pitProgress = Number.isFinite(this.pitProgress) && this.approachScheduled
+        ? Math.max(p.progress + 480, Math.min(p.progress + 600, this.pitProgress)) : p.progress + 480;
+      this.endProgress = this.pitProgress;
       this.transition = 0; combat.money += 10 + this.number * 2; combat.clear(); return;
+    }
+    if (this.remaining <= 3 && !this.approachScheduled) {
+      this.pitProgress = p.progress + p.speed * this.remaining + 480;
+      this.approachScheduled = true;
     }
     this.spawnTime -= dt;
     if (this.spawnTime <= 0) {
@@ -56,10 +58,40 @@ export class WaveSystem {
     }
   }
 
-  next(combat: CombatSystem): void {
+  private drivePit(p: DriftPhysics, dt: number, leaving: boolean): void {
+    p.previousX = p.x; p.previousProgress = p.progress; p.previousHeading = p.heading;
+    const duration = leaving ? PIT_EXIT_SECONDS : PIT_ENTRY_SECONDS;
+    this.transition = Math.min(duration, this.transition + dt);
+    if (duration - this.transition < 0.000001) this.transition = duration;
+    const t = this.transition / duration;
+    const forwardEase = leaving ? t * t : 1 - (1 - t) * (1 - t);
+    p.progress = this.entryProgress + (this.endProgress - this.entryProgress) * forwardEase;
+    const laneX = 225 + pitLaneCenter(p.progress - this.pitProgress);
+    // Finish the lane change before the physical divider begins, from any starting lane.
+    const entryBlend = smoothPit((p.progress - this.entryProgress) / Math.max(1, this.pitProgress - 250 - this.entryProgress));
+    p.x = leaving ? laneX : this.entryX + (laneX - this.entryX) * entryBlend;
+    p.vx = (p.x - p.previousX) / dt;
+    const forward = (this.endProgress - this.entryProgress) * 2 * (leaving ? t : 1 - t) / duration;
+    p.vy = -forward; p.speed = Math.hypot(p.vx, forward);
+    const targetHeading = Math.max(-0.7, Math.min(0.7, Math.atan2(p.vx, Math.max(1, forward))));
+    p.heading += (targetHeading - p.heading) * Math.min(1, dt * 12);
+    p.distance += (p.progress - p.previousProgress) * 0.52 / 3.6;
+    p.released = 0; p.hitWall = 0; p.didBoost = false;
+    p.drifting = false; p.tier = 0; p.charge = 0; p.nitroTime = p.pulseTime = 0;
+    this.cameraSide = PIT_CAMERA_SIDE * (leaving ? 1 - smoothPit(t) : smoothPit(t));
+    if (t >= 1) {
+      this.state = leaving ? 'combat' : 'pit'; p.heading = p.previousHeading = 0;
+      if (!leaving) p.vx = p.vy = p.speed = 0;
+      p.previousProgress = p.progress; p.previousX = p.x;
+    }
+  }
+  next(combat: CombatSystem, p: DriftPhysics): void {
     if (this.state !== 'pit') return;
     this.number++; this.duration = Math.min(60, 45 + (this.number - 1) * 3);
-    this.remaining = this.duration; this.state = 'combat'; this.spawnTime = 0.4; this.pursuitTime = 2.5;
+    this.remaining = this.duration; this.state = 'exiting'; this.spawnTime = 0.4; this.pursuitTime = 2.5;
+    this.approachScheduled = false; this.transition = 0;
+    if (!Number.isFinite(this.pitProgress)) this.pitProgress = p.progress;
+    this.entryX = p.x; this.entryProgress = p.progress; this.endProgress = p.progress + PIT_EXIT_DISTANCE;
     combat.clear();
   }
 }
