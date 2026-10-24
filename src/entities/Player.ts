@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { CAR_Y } from '../config';
+import type { CarId } from '../data/cars';
 import { DriftPhysics } from '../systems/DriftPhysics';
 import type { TrackProjection } from '../systems/TrackProjection';
 
@@ -7,15 +8,13 @@ export class Player {
   baseY = CAR_Y;
   readonly physics = new DriftPhysics();
   readonly sprite: Phaser.GameObjects.Image;
-  private chassis: Phaser.GameObjects.Image;
   private shadow: Phaser.GameObjects.Ellipse;
-  constructor(scene: Phaser.Scene, tint = 0xa74b32) {
+  constructor(scene: Phaser.Scene, model: CarId = 'flash') {
     this.shadow = scene.add.ellipse(225, CAR_Y + 10, 58, 58, 0x263c32, 0.24);
-    this.chassis = scene.add.image(225, CAR_Y + 5, 'car').setTint(tint);
-    this.sprite = scene.add.image(225, CAR_Y, 'car');
+    this.sprite = scene.add.image(225, CAR_Y, 'car-' + model);
   }
-  /** Recolor the chassis for car selection previews. */
-  chassisTint(tint: number): void { this.chassis.setTint(tint); }
+  /** Swap the kart painting for car selection previews. */
+  setModel(model: CarId): void { this.sprite.setTexture('car-' + model); }
   render(alpha: number, kick: number, projection: TrackProjection): void {
     const p = this.physics;
     const x = p.previousX + (p.x - p.previousX) * alpha;
@@ -26,8 +25,6 @@ export class Player {
     const scale = projection.scale, depth = 10 + projection.y / 100;
     this.sprite.setPosition(projection.x, projection.y - 5 + kick).setRotation(angle)
       .setScale(scale, scale * 0.85).setDepth(depth + 0.02);
-    this.chassis.setPosition(projection.x, projection.y + 1 + kick).setRotation(angle)
-      .setScale(scale * 1.01, scale * 0.85).setDepth(depth + 0.01);
     this.shadow.setPosition(projection.x + 5, projection.y + 10).setRotation(angle)
       .setScale(scale).setDepth(depth);
   }

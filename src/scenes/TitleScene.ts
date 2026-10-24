@@ -40,6 +40,7 @@ export class TitleScene extends Phaser.Scene {
       resume.onclick = () => {
         if (resume.disabled) return;
         resume.disabled = start.disabled = true;
+        this.registry.set('car', saved.car);
         this.registry.set('resumeData', saved);
         document.getElementById('title')!.classList.add('hidden');
         this.scene.start('Game');

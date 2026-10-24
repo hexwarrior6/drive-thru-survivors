@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { createPitTextures } from '../data/createPitTextures';
+import { CARS } from '../data/cars';
 import { C } from '../data/colors';
 
 export class BootScene extends Phaser.Scene {
@@ -7,19 +8,25 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     const g = this.make.graphics({ x: 0, y: 0 });
     // Original raceCar motif, rotated to face up and redrawn for a 50 × 70 kart.
-    g.fillStyle(0x293e37);
-    for (const x of [3, 43]) for (const y of [13, 49]) g.fillRoundedRect(x, y, 9, 16, 3);
-    g.fillStyle(C.car); g.lineStyle(2.5, C.border);
-    g.fillRoundedRect(9, 3, 38, 65, 12); g.strokeRoundedRect(9, 3, 38, 65, 12);
-    g.fillStyle(0xf4773e); g.fillRoundedRect(13, 6, 30, 24, 8);
-    g.fillStyle(C.panel); g.fillRect(23, 5, 8, 59);
-    g.fillStyle(0x3c717a); g.fillRoundedRect(14, 23, 28, 23, 6);
-    g.fillStyle(C.mint); g.fillRoundedRect(17, 25, 22, 12, 4);
-    g.fillStyle(C.panel, 0.7); g.fillRect(18, 26, 4, 10);
-    g.fillStyle(C.gold); g.fillRoundedRect(13, 7, 7, 5, 2); g.fillRoundedRect(36, 7, 7, 5, 2);
-    g.fillStyle(C.border); g.fillRoundedRect(10, 59, 36, 5, 2);
-    g.fillStyle(C.gold); g.fillRect(14, 64, 6, 3); g.fillRect(36, 64, 6, 3);
-    g.generateTexture('car', 56, 74); g.clear();
+    // One painting per starter car: chassis and hood take that car's livery.
+    const drawCar = (body: number, hood: number): void => {
+      g.fillStyle(0x293e37);
+      for (const x of [3, 43]) for (const y of [13, 49]) g.fillRoundedRect(x, y, 9, 16, 3);
+      g.fillStyle(body); g.lineStyle(2.5, C.border);
+      g.fillRoundedRect(9, 3, 38, 65, 12); g.strokeRoundedRect(9, 3, 38, 65, 12);
+      g.fillStyle(hood); g.fillRoundedRect(13, 6, 30, 24, 8);
+      g.fillStyle(C.panel); g.fillRect(23, 5, 8, 59);
+      g.fillStyle(0x3c717a); g.fillRoundedRect(14, 23, 28, 23, 6);
+      g.fillStyle(C.mint); g.fillRoundedRect(17, 25, 22, 12, 4);
+      g.fillStyle(C.panel, 0.7); g.fillRect(18, 26, 4, 10);
+      g.fillStyle(C.gold); g.fillRoundedRect(13, 7, 7, 5, 2); g.fillRoundedRect(36, 7, 7, 5, 2);
+      g.fillStyle(C.border); g.fillRoundedRect(10, 59, 36, 5, 2);
+      g.fillStyle(C.gold); g.fillRect(14, 64, 6, 3); g.fillRect(36, 64, 6, 3);
+    };
+    for (const car of CARS) {
+      drawCar(car.body, car.hood);
+      g.generateTexture('car-' + car.id, 56, 74); g.clear();
+    }
     g.fillStyle(C.border); g.fillCircle(12, 23, 10);
     g.fillStyle(C.gold); g.fillCircle(12, 23, 7);
     g.fillStyle(C.border); g.fillRoundedRect(7, 0, 10, 24, 3);

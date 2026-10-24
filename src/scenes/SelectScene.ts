@@ -40,7 +40,7 @@ export class SelectScene extends Phaser.Scene {
     const applySelection = () => {
       for (const card of cards) card.classList.toggle('selected', card.dataset.car === this.selected);
       const def = carById(this.selected);
-      this.car.chassisTint(def.tint);
+      this.car.setModel(def.id);
       confirm.textContent = `驾驶 ${def.name} 出发 ↗`;
     };
     for (const card of cards) {
