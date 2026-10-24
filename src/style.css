@@ -14,6 +14,8 @@ button:disabled{cursor:default;opacity:.45}
 .brand-mark span{font-size:21px;position:absolute;right:-7px;top:-9px;color:var(--ink)}
 .edition{font-size:12px;letter-spacing:2px;display:flex;align-items:center;gap:14px}
 .edition i{width:4px;height:4px;border-radius:50%;background:#a49170}
+/* Mobile-only brand row lives inside the title panel; hidden on desktop where the masthead shows it. */
+.mobile-brand{display:none}
 .icon-button{display:grid;place-items:center;flex:0 0 48px;width:48px;height:48px;padding:0;background:#f4ebd4;border:1px solid #75432930;border-bottom:2px solid #75432945;border-radius:12px;color:#52624b;pointer-events:auto;transition:background .15s,transform .15s}
 .icon-button svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .icon-button:hover{background:#e9e5ce}
@@ -232,6 +234,18 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
   .title-panel, .pause-panel { left:max(22px,env(safe-area-inset-left)); right:max(22px,env(safe-area-inset-right)); max-width:390px; margin-inline:auto; }
 
   .title-panel { top:22%; }
+
+  .mobile-brand { display:flex; align-items:center; gap:10px; margin-bottom:13px; }
+
+  .mobile-brand .brand-mark { width:34px; height:34px; flex-shrink:0; font-size:26px; line-height:34px; border-radius:9px 9px 9px 3px; }
+
+  .mobile-brand .brand-mark span { font-size:16px; right:-6px; top:-7px; }
+
+  .mobile-brand-name { font-size:9px; letter-spacing:1.6px; line-height:1.4; font-weight:650; }
+
+  .mobile-brand-name b { font-size:11px; letter-spacing:2px; }
+
+  .mobile-brand-edition { margin-left:auto; max-width:46%; text-align:right; font-size:9px; letter-spacing:1px; line-height:1.5; font-weight:700; color:#8a8e6b; }
 
   .title-panel h2 { font-size:34px; }
 
