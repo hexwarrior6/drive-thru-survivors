@@ -255,7 +255,10 @@ export class CombatSystem {
             this.hurt(e.kind === 0 ? 5 : e.kind === 3 ? 14 : 9, e);
           }
           if (e.active) {
-            e.z += dz >= 0 ? 48 : -48; e.x += dx >= 0 ? 15 : -15;
+            // Push along travel direction: a rider re-crossing the car from ahead must
+            // keep falling back, or the forward shove would trap it in front forever.
+            e.z += e.kind === 2 && e.vz < 0 ? -48 : dz >= 0 ? 48 : -48;
+            e.x += dx >= 0 ? 15 : -15;
             if (this.ramSlow > 0 && e.kind !== 3) { e.slow = Math.min(e.slow, 1 - this.ramSlow); e.slowTime = 2; }
           }
         }

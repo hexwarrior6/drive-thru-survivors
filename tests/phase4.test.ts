@@ -163,9 +163,9 @@ test('run saves round-trip and records keep a three-entry hall', () => {
   const shop = new ShopSystem(snapshot, () => .5);
   const route = [shop.destination(1), shop.destination(2)];
   const run: RunSave = {
-    v: 4, car: 'magnet', city: '杭州', wave: 3, duration: 51, atPit: true,
+    v: 5, car: 'magnet', city: '杭州', wave: 3, duration: 51, atPit: true,
     health: 64, money: 77, kills: 88, maxCombo: 12, distance: 5432, nitro: 80,
-    slots: [{ name: '巨无霸', type: 'burger', level: 2 }, null, null, null, null, null],
+    slots: [{ name: '巨无霸', type: 'burger', level: 2 }, { name: '麦乐鸡', type: 'mine', level: 1 }, null, null, null],
     route, bagIds: shop.bag.map(s => s.id), snapshot, savedAt: '2026-10-24T00:00:00.000Z',
   };
   saveRun(run);
@@ -234,12 +234,22 @@ function driveRun() {
     shop.open(wave.number);
     while (combat.health < 80 && combat.money >= shop.repairCost()) { shop.repair(combat); repairs++; }
     const typed = shop.offers.map((offer, i) => ({ i, price: shop.price(offer), type: mapProductToWeapon(offer) })).sort((a, b) => a.price - b.price);
+    // Guns fill their mounts; the scripted driver upgrades in place, swaps a weak front
+    // gun for a stronger one, and spends surplus on survival aux.
     for (const { i, price } of typed) {
       if (shop.sold.has(i)) continue;
+      const type = typed.find(item => item.i === i)!.type;
       const same = shop.equipped(shop.offers[i]);
-      if (!damageTypes.has(typed.find(item => item.i === i)!.type) && !same) continue;
-      if (same && same.level < 3 && combat.money >= price) { shop.buy(i, combat); purchases++; }
-      else if (!same && shop.slots.some(slot => slot === null) && combat.money >= price) { shop.buy(i, combat); purchases++; }
+      const damage = damageTypes.has(type);
+      const survival = type === 'heal' || type === 'shield';
+      if (!damage && !survival && !same) continue;
+      if (same && same.level >= 3) continue;
+      if (combat.money < price) continue;
+      const result = shop.buy(i, combat);
+      if (result === 'bought') { purchases++; continue; }
+      if (result === 'replace' && shop.mountsFor(type)[0] === 0 && shop.slots[0]?.type === 'fries') {
+        shop.buy(i, combat, 0); purchases++;
+      }
     }
     p.nitro = Math.min(100, p.nitro + 20);
   };

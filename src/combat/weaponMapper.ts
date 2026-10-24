@@ -2,6 +2,15 @@ import type { Product } from '../data/snapshot';
 import type { StatIcon } from '../ui/icons';
 export type WeaponType = 'starter' | 'burger' | 'fries' | 'cola' | 'ice' | 'mine' | 'flame' | 'coffee' | 'desperate' | 'heal' | 'shield' | 'missile' | 'wingman';
 export const weaponNames: Record<WeaponType, string> = { starter: '后置散弹炮', burger: '汉堡炮台', fries: '薯条散射枪', cola: '可乐喷泉', ice: '冰冻射线', mine: '鸡块地雷', flame: '辣椒喷射器', coffee: '咖啡涡轮', desperate: '绝境提速', heal: '回复光环', shield: '甜筒护盾', missile: '麦辣制导飞弹', wingman: '开心乐园僚车' };
+/** Where a weapon mounts: front gun, rear gun, or a passive aux slot. */
+export type Mount = 'front' | 'rear' | 'aux';
+export const mountNames: Record<Mount, string> = { front: '前炮台', rear: '后炮台', aux: '辅助位' };
+const MOUNT_OF: Record<WeaponType, Mount> = {
+  burger: 'front', fries: 'front', missile: 'front',
+  starter: 'rear', flame: 'rear', mine: 'rear', ice: 'rear',
+  cola: 'aux', coffee: 'aux', desperate: 'aux', heal: 'aux', shield: 'aux', wingman: 'aux',
+};
+export function mountOf(type: WeaponType): Mount { return MOUNT_OF[type]; }
 export function mapProductToWeapon(p: Product): WeaponType {
   const n = p.name;
   if (/开心乐园/.test(n)) return 'wingman';
@@ -33,14 +42,14 @@ export function weaponStats(type: WeaponType, level: number): StatLine[] {
   const l = level - 1;
   switch (type) {
     case 'burger': return [
-      line('burst', `${stats.burger.damage[l]} 伤害`),
+      line('burst', `${stats.burger.damage[l]} 重击`),
       line('clock', `${stats.burger.interval[l]}s/发`),
-      level === 1 ? line('pierce', '前向单发') : line('pierce', `穿透 ${level} 敌`),
+      level === 1 ? line('pierce', '直排贯穿') : line('pierce', `穿透 ${level} 敌`),
       ...(level === 3 ? [line('up', '弹丸 +50%')] : []),
     ];
     case 'fries': return [
       line('burst', `${stats.fries.count[l]} 根 × ${stats.fries.damage[l]}`),
-      line('fan', `${[45, 60, 75][l]}° 扇形`),
+      line('fan', `${[45, 60, 75][l]}° 前向扇形`),
       ...(level > 1 ? [line('snow', `减速 ${level === 2 ? 20 : 30}%`)] : []),
       ...(level === 3 ? [line('pierce', '穿透')] : []),
     ];
@@ -53,7 +62,7 @@ export function weaponStats(type: WeaponType, level: number): StatLine[] {
     case 'ice': return [
       line('burst', `${stats.ice.damage[l]}/tick`),
       level === 3 ? line('snow', '冻结 2s · 冰爆') : line('snow', `减速 ${level === 1 ? 50 : 70}% 3s`),
-      line('pierce', `${stats.ice.range[l]}px`),
+      line('pierce', `锁定追兵 · ${stats.ice.range[l]}px`),
     ];
     case 'mine': return [
       line('boom', `${stats.mine.damage[l]} 爆炸`),
@@ -63,7 +72,7 @@ export function weaponStats(type: WeaponType, level: number): StatLine[] {
     ];
     case 'flame': return [
       line('flame', `${stats.flame.damage[l]}/tick`),
-      line('fan', `后方 ${level === 3 ? 160 : 120}°`),
+      line('fan', `后方 ${level === 3 ? 160 : 120}° 扫清追兵`),
       line('pierce', `${stats.flame.range[l]}px`),
       ...(level > 1 ? [line('clock', `灼烧 ${level === 3 ? 3 : 2}s`)] : []),
     ];
@@ -90,7 +99,7 @@ export function weaponStats(type: WeaponType, level: number): StatLine[] {
     case 'missile': return [
       line('burst', `${stats.missile.damage[l]} 伤害`),
       line('clock', `${stats.missile.interval[l]}s/发`),
-      line('magnet', '自动追踪锁敌'),
+      line('magnet', '锁定霸王 · 自动追踪'),
       ...(level === 3 ? [line('up', '双发齐射')] : []),
     ];
     case 'wingman': return [
@@ -99,6 +108,6 @@ export function weaponStats(type: WeaponType, level: number): StatLine[] {
       line('magnet', '侧翼协同射击'),
       ...(level === 3 ? [line('up', '召唤第二辆')] : []),
     ];
-    default: return [line('burst', '自动索敌 · 三发散弹')];
+    default: return [line('burst', '后向索敌 · 三发散弹')];
   }
 }

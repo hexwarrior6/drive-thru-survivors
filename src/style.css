@@ -226,8 +226,16 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 .food-card button, .repair-button, #replacement button { min-height:44px; border:1px solid #754329; border-radius:8px; background:#ffcf52; font:700 11px system-ui; color:#354e3c; cursor:pointer; padding:4px; }
 .pit-panel button:disabled { opacity:.45; cursor:default; }
 .repair-button { width:100%; }
-#weapon-slots { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px; margin:10px 0; }
+#weapon-slots { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; margin:10px 0; }
+.slot-group-label { grid-row:1; font-size:8px; letter-spacing:1px; font-weight:800; color:#8a8e6b; text-align:center; padding-bottom:2px; white-space:nowrap; }
 .weapon-slot { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-height:48px; min-width:0; border:1px solid #c8b890; border-radius:8px; background:#fff9e8; font:700 9px system-ui; color:#354e3c; padding:4px 1px; white-space:nowrap; overflow:hidden; }
+.weapon-slot .slot-icon { height:18px; width:18px; flex-shrink:0; }
+.weapon-slot .slot-icon svg { width:100%; height:100%; }
+.slot-icon-empty { border:1.5px dashed #c8b890; border-radius:6px; opacity:.55; box-sizing:border-box; }
+.weapon-slot .slot-empty { font-size:8px; color:#7d775f; }
+.weapon-slot.locked { opacity:.35; }
+.weapon-slot.locked:hover { filter:none; }
+.mount-badge { font-style:normal; font-size:8px; font-weight:700; color:#754329; background:#ffcf5266; border-radius:4px; padding:1px 4px; margin-right:4px; vertical-align:1px; }
 .weapon-slot .slot-name { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
 .weapon-slot .slot-level { font-size:8px; font-weight:600; color:#7d775f; }
 .pit-panel .weapon-slot:disabled { opacity:1; }
@@ -274,7 +282,7 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
   .food-card p { margin:4px 0 6px; }
   .food-card button, .repair-button { min-height:36px; }
   #weapon-slots { margin:5px 0; }
-  .weapon-slot { height:36px; min-height:0; padding:2px 1px; }
+  .weapon-slot { height:44px; min-height:0; padding:2px 1px; }
   .weapon-slot .slot-name { font-size:8px; letter-spacing:0; }
   #store-menu { margin:6px 0; }
   #store-menu summary { min-height:0; padding-top:5px; }

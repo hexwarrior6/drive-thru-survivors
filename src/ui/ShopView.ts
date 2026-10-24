@@ -1,5 +1,5 @@
 import { productHighlight } from '../data/menuDiscovery';
-import { mapProductToWeapon, weaponNames, weaponStats } from '../combat/weaponMapper';
+import { mapProductToWeapon, mountNames, mountOf, weaponNames, weaponStats } from '../combat/weaponMapper';
 import type { ShopSystem, Wallet } from '../systems/ShopSystem';
 import { statIcon } from './icons';
 const icons = {
@@ -8,7 +8,7 @@ const icons = {
  dessert: '<path fill="#edb355" stroke="#754329" stroke-width="2" d="m10 29 26-18 27 18-8 29H18Z"/><path stroke="#fff9e8" stroke-width="4" d="m23 27 20 23m-3-27L24 49"/><path fill="#ad4931" d="m10 29 53 0-27 9Z"/>' ,
  drink: '<path fill="#80c6c3" stroke="#754329" stroke-width="2" d="m17 22 6 38h29l5-38Z"/><path stroke="#e75239" stroke-width="4" d="m38 26 5-20h13"/><path stroke="#754329" stroke-width="3" d="M14 22h46"/><circle fill="#fff9e8" cx="36" cy="42" r="8"/>',
 };
-function foodIcon(type: string): string { return `<svg viewBox="0 0 72 68" aria-hidden="true">${type === 'heal' || type === 'shield' ? icons.dessert : type === 'burger' || type === 'flame' ? icons.burger : type === 'fries' || type === 'mine' ? icons.fries : icons.drink}</svg>`; }
+function foodIcon(type: string): string { return `<svg viewBox="0 0 72 68" aria-hidden="true">${type === 'heal' || type === 'shield' || type === 'wingman' ? icons.dessert : type === 'burger' || type === 'flame' || type === 'starter' || type === 'missile' ? icons.burger : type === 'fries' || type === 'mine' ? icons.fries : icons.drink}</svg>`; }
 function node(tag: string, text: string, className = ''): HTMLElement { const e = document.createElement(tag); e.textContent = text; e.className = className; return e; }
 export class ShopView {
   private expandedMenu = false;
@@ -28,12 +28,14 @@ export class ShopView {
     const cards = document.getElementById('shop-cards')!; cards.replaceChildren();
     const menu = document.getElementById('menu-products')!; menu.replaceChildren();
     s.offers.forEach((p, i) => {
-      const type = mapProductToWeapon(p), same = s.equipped(p), next = s.sold.has(i) ? (same?.level ?? 1) : Math.min(3, (same?.level ?? 0) + 1);
+      const type = mapProductToWeapon(p), mount = mountOf(type), same = s.equipped(p), next = s.sold.has(i) ? (same?.level ?? 1) : Math.min(3, (same?.level ?? 0) + 1);
       const card = node('article', '', i < 3 ? 'food-card' : 'food-card menu-card');
       const art = node('div', '', 'food-art'); art.innerHTML = foodIcon(type); card.append(art);
       const highlight = productHighlight(p);
       if (highlight) card.append(node('span', highlight, 'product-highlight'));
-      card.append(node('h3', p.name), node('b', `${weaponNames[type]} Lv.${next}`));
+      card.append(node('h3', p.name));
+      const title = node('b', ''); title.innerHTML = `<i class="mount-badge">${mountNames[mount]}</i>${weaponNames[type]} Lv.${next}`;
+      card.append(title);
       const desc = node('p', '');
       desc.innerHTML = weaponStats(type, next).map(s => `<span class="stat">${statIcon(s.icon)}${s.text}</span>`).join('');
       card.append(desc);
@@ -50,14 +52,30 @@ export class ShopView {
     details.ontoggle = () => { this.expandedMenu = details.open; };
     document.getElementById('menu-summary')!.textContent = `查看其他 ${Math.max(0,s.offers.length - 3)} 款餐品 · 共 ${s.offers.length} 款已核价`;
     const slots = document.getElementById('weapon-slots')!; slots.replaceChildren();
-    s.slots.forEach((weapon, i) => {
-      const b = node('button', '', `weapon-slot${s.pending >= 0 ? ' replaceable' : ''}${s.selected === i ? ' selected' : ''}`) as HTMLButtonElement;
-      b.innerHTML = weapon
-        ? `<span class="slot-name">${weaponNames[weapon.type]}</span><span class="slot-level">Lv.${weapon.level}</span>`
-        : `<span class="slot-empty">${i + 1} · 空槽</span>`;
-      b.disabled = s.pending < 0;
-      b.addEventListener('click', () => { s.selected = i; this.render(); }); slots.append(b);
-    });
+    // Grouped mounts: [0] front gun, [1] rear gun, [2..4] aux passives. Only slots
+    // matching the pending offer's mount are selectable during a replacement.
+    const pendingMounts = s.pending >= 0 && s.offers[s.pending] ? s.mountsFor(mapProductToWeapon(s.offers[s.pending])) : [];
+    const groups: { label: string; column: string; indexes: number[] }[] = [
+      { label: '前炮台', column: '1', indexes: [0] },
+      { label: '后炮台', column: '2', indexes: [1] },
+      { label: '辅助位', column: '3 / -1', indexes: [2, 3, 4] },
+    ];
+    for (const group of groups) {
+      const label = node('span', group.label, 'slot-group-label');
+      label.style.gridColumn = group.column; label.style.gridRow = '1';
+      slots.append(label);
+      for (const i of group.indexes) {
+        const weapon = s.slots[i];
+        const eligible = pendingMounts.includes(i);
+        const b = node('button', '', `weapon-slot${pendingMounts.length ? (eligible ? ' replaceable' : ' locked') : ''}${s.selected === i ? ' selected' : ''}`) as HTMLButtonElement;
+        b.style.gridColumn = String(i + 1); b.style.gridRow = '2';
+        b.innerHTML = weapon
+          ? `<span class="slot-icon">${foodIcon(weapon.type)}</span><span class="slot-name">${weaponNames[weapon.type]}</span><span class="slot-level">Lv.${weapon.level}</span>`
+          : `<span class="slot-icon slot-icon-empty"></span><span class="slot-empty">${group.label} · 空</span>`;
+        b.disabled = pendingMounts.length === 0 || !eligible;
+        b.addEventListener('click', () => { s.selected = i; this.render(); }); slots.append(b);
+      }
+    }
     const pending = document.getElementById('replacement')!; pending.classList.toggle('hidden', s.pending < 0);
     const confirm = document.getElementById('confirm-replace') as HTMLButtonElement;
     confirm.disabled = s.selected < 0;

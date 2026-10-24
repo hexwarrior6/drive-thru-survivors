@@ -2,12 +2,13 @@ import type { CarId } from '../data/cars';
 import type { Snapshot, Store } from '../data/snapshot';
 import type { WeaponType } from '../combat/weaponMapper';
 
-const RUN_KEY = 'dts.run.v4';
+const RUN_KEY = 'dts.run.v5';
 const RECORDS_KEY = 'dts.records.v1';
 
 export interface SavedSlot { name: string; type: WeaponType; level: number }
+/** v5 slots: [front gun, rear gun, aux ×3]. v4 saves are not migrated. */
 export interface RunSave {
-  v: 4;
+  v: 5;
   car: CarId;
   city: string;
   wave: number;
@@ -57,7 +58,7 @@ export function loadRun(): RunSave | null {
     const raw = store.getItem(RUN_KEY);
     if (!raw) return null;
     const run = JSON.parse(raw) as RunSave;
-    if (run?.v !== 4 || !run.snapshot || !Array.isArray(run.slots) || !Array.isArray(run.route)) return null;
+    if (run?.v !== 5 || !run.snapshot || !Array.isArray(run.slots) || !Array.isArray(run.route)) return null;
     return run;
   } catch { return null; }
 }

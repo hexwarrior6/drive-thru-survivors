@@ -97,7 +97,7 @@ export class GameScene extends Phaser.Scene {
     this.lines = this.add.graphics().setDepth(6);
     this.skidMarks = new SkidMarks(this.track.projection);
     this.particles = new ParticleManager(this, this.track.projection);
-    this.player = new Player(this, carDef.tint);
+    this.player = new Player(this, carDef.id);
     const snapshot = this.registry.get('snapshot') ?? demoSnapshot();
     this.combat = new CombatSystem(this.particles);
     this.wave = new WaveSystem();
@@ -183,7 +183,7 @@ export class GameScene extends Phaser.Scene {
     this.player.physics.carSpeedBonus = carDef.speedBonus;
     this.player.physics.carNitroRegen = carDef.nitroRegen;
     this.shop.restore(run.route, run.bagIds);
-    for (let i = 0; i < 6; i++) this.shop.slots[i] = run.slots[i] ? { ...run.slots[i]!, cooldown: 0 } : null;
+    for (let i = 0; i < 5; i++) this.shop.slots[i] = run.slots[i] ? { ...run.slots[i]!, cooldown: 0 } : null;
     this.combat.health = run.health; this.combat.money = run.money;
     this.combat.kills = run.kills; this.combat.maxCombo = run.maxCombo;
     this.player.physics.distance = run.distance;
@@ -218,7 +218,7 @@ export class GameScene extends Phaser.Scene {
   private persistRun(atPit: boolean): void {
     if (this.finished || this.wave.state === 'disabled') { clearRun(); return; }
     const run: RunSave = {
-      v: 4, car: this.carId, city: this.shop.snapshot.city,
+      v: 5, car: this.carId, city: this.shop.snapshot.city,
       wave: this.wave.number, duration: this.wave.duration,
       atPit: atPit && this.wave.state === 'pit',
       health: this.combat.health, money: this.combat.money, kills: this.combat.kills,
@@ -415,7 +415,7 @@ export class GameScene extends Phaser.Scene {
     this.player.render(alpha, this.reducedMotion ? 0 : this.kick, this.track.projection);
     this.combatView.draw(alpha);
     this.weaponView.draw(this.player.physics, this.elapsed);
-    this.combatView.drawTurret(this.player.physics, alpha, this.reducedMotion ? 0 : this.kick);
+    this.combatView.drawTurret(this.player.physics, alpha, this.reducedMotion ? 0 : this.kick, this.shop.slots[0]?.type ?? null, this.shop.slots[1]?.type ?? 'starter');
     this.particles.draw();
     this.skidMarks.draw(this.skid);
     this.player.sprite.setAlpha(this.combat.impact ? 0.55 : 1);

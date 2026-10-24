@@ -3,9 +3,13 @@ import type { DriftPhysics } from '../systems/DriftPhysics';
 import type { CombatSystem } from './CombatSystem';
 import type { TrackProjection } from '../systems/TrackProjection';
 import type { Theme } from '../systems/Theme';
+import type { WeaponType } from './weaponMapper';
 const ENEMY_TEXTURES = ['cone', 'cart', 'rider', 'truck'];
 const HIT_TEXTURES = ['cone-hit', 'cart-hit', 'rider-hit', 'truck-hit'];
 const BULLET_TEXTURES = ['bullet', 'burger-bullet', 'fries-bullet', 'toy-bullet', 'missile-bullet'];
+/** Mount barrel tints per installed gun so the car shows what is actually bolted on. */
+const REAR_TINTS: Record<string, number> = { starter: 0xffffff, flame: 0xe75239, mine: 0xffcf52, ice: 0x80c6c3 };
+const FRONT_TINTS: Record<string, number> = { burger: 0xedb355, fries: 0xffcf52, missile: 0xff9d7a };
 /** Sprites (including three cached digit sprites per damage number) are created once. */
 export class CombatView {
   private readonly enemies: Phaser.GameObjects.Image[] = [];
@@ -16,6 +20,7 @@ export class CombatView {
   visibleEnemies = 0;
   visibleBullets = 0;
   private readonly turret: Phaser.GameObjects.Image;
+  private readonly frontGun: Phaser.GameObjects.Image;
   constructor(scene: Phaser.Scene, private readonly model: CombatSystem, private readonly projection: TrackProjection, private readonly theme?: Theme) {
     for (let i = 0; i < model.enemies.capacity; i++) this.enemies.push(scene.add.image(0, 0, 'cone').setVisible(false));
     for (let i = 0; i < model.bullets.capacity; i++) this.bullets.push(scene.add.image(0, 0, 'bullet').setVisible(false));
@@ -23,6 +28,7 @@ export class CombatView {
     for (let i = 0; i < model.damage.capacity * 3; i++) this.digits.push(scene.add.image(0, 0, 'digit0').setVisible(false).setDepth(29));
     if (theme?.hat) for (let i = 0; i < model.enemies.capacity; i++) this.hats.push(scene.add.image(0, 0, 'hat').setVisible(false).setDepth(29));
     this.turret = scene.add.image(0, 0, 'turret').setOrigin(0.5, 0.68);
+    this.frontGun = scene.add.image(0, 0, 'turret').setOrigin(0.5, 0.68).setVisible(false);
   }
   private place(image: Phaser.GameObjects.Image, x: number, z: number, scale: number): void {
     const p = this.projection; p.project(z, x);
@@ -83,16 +89,29 @@ export class CombatView {
       }
     }
   }
-  drawTurret(p: DriftPhysics, alpha: number, kick: number): void {
+  drawTurret(p: DriftPhysics, alpha: number, kick: number, front: WeaponType | null, rear: WeaponType): void {
     const heading = p.previousHeading + (p.heading - p.previousHeading) * alpha;
-    const x = p.previousX + (p.x - p.previousX) * alpha - 225 - Math.sin(heading) * 24;
-    const z = p.previousProgress + (p.progress - p.previousProgress) * alpha - Math.cos(heading) * 24;
-    const projection = this.projection; projection.project(z, x);
+    const x = p.previousX + (p.x - p.previousX) * alpha - 225;
+    const z = p.previousProgress + (p.progress - p.previousProgress) * alpha;
+    const projection = this.projection;
+    // Rear mount trails the car and tracks the current aim; front mount points ahead.
+    const rx = x - Math.sin(heading) * 24, rz = z - Math.cos(heading) * 24;
+    projection.project(rz, rx);
     const sx = projection.x, sy = projection.y, scale = projection.scale;
-    projection.project(z + this.model.aimZ * 45, x + this.model.aimX * 45);
+    projection.project(rz + this.model.aimZ * 45, rx + this.model.aimX * 45);
     const angle = Math.atan2(projection.x - sx, sy - projection.y);
     this.turret.setPosition(sx, sy - 5 + kick).setRotation(angle).setScale(scale, scale * 0.85)
-      .setVisible(this.model.starterEnabled).setDepth(10 + sy / 100 + 0.05).setAlpha(this.model.muzzleFlash > 0 ? 0.7 : 1);
+      .setVisible(true).setDepth(10 + sy / 100 + 0.05).setAlpha(this.model.muzzleFlash > 0 ? 0.7 : 1)
+      .setTint(REAR_TINTS[rear] ?? 0xffffff);
+    if (front) {
+      const fx = x + Math.sin(heading) * 24, fz = z + Math.cos(heading) * 24;
+      projection.project(fz, fx);
+      const fsx = projection.x, fsy = projection.y;
+      projection.project(fz + Math.cos(heading) * 45, fx + Math.sin(heading) * 45);
+      const fangle = Math.atan2(projection.x - fsx, fsy - projection.y);
+      this.frontGun.setPosition(fsx, fsy - 5 + kick).setRotation(fangle).setScale(scale, scale * 0.85)
+        .setVisible(true).setDepth(10 + fsy / 100 + 0.05).setTint(FRONT_TINTS[front] ?? 0xffffff);
+    } else this.frontGun.setVisible(false);
   }
 
 }

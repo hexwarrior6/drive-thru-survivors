@@ -1,10 +1,15 @@
 import { discoveryScore } from '../data/menuDiscovery';
 import type { Product, Snapshot, Store } from '../data/snapshot';
-import { mapProductToWeapon, type WeaponType } from '../combat/weaponMapper';
+import { mapProductToWeapon, mountOf, type WeaponType } from '../combat/weaponMapper';
 export interface EquippedWeapon { name: string; type: WeaponType; level: number; cooldown: number }
 export interface Wallet { money: number; health: number }
+/** Fixed mounts: [0] front gun, [1] rear gun, [2..4] aux passives. The stock scatter
+ *  gun is built into the car and never occupies a slot. */
+export const SLOT_FRONT = 0;
+export const SLOT_REAR = 1;
+export const AUX_SLOTS = [2, 3, 4];
 export class ShopSystem {
-  readonly slots: (EquippedWeapon | null)[] = [{ name: '后置散弹炮', type: 'starter', level: 1, cooldown: 0 }, null, null, null, null, null];
+  readonly slots: (EquippedWeapon | null)[] = [null, null, null, null, null];
   offers: Product[] = [];
   sold = new Set<number>();
   pending = -1;
@@ -47,19 +52,27 @@ export class ShopSystem {
   price(p: Product): number { return Math.max(1, Math.ceil(this.basePrice(p) * this.discount)); }
   repairCost(): number { return 10 + (this.wave - 1) * 2; }
   equipped(p: Product): EquippedWeapon | undefined { return this.slots.find(w => w?.name === p.name) ?? undefined; }
+  /** The mounts a weapon type may occupy, in fill order. */
+  mountsFor(type: WeaponType): number[] {
+    const mount = mountOf(type);
+    return mount === 'front' ? [SLOT_FRONT] : mount === 'rear' ? [SLOT_REAR] : AUX_SLOTS;
+  }
   buy(index: number, wallet: Wallet, replacement = -1): 'bought' | 'replace' | 'unavailable' {
     const p = this.offers[index];
     if (!p || this.sold.has(index) || wallet.money < this.price(p)) return 'unavailable';
     const same = this.equipped(p);
     if (same?.level === 3) return 'unavailable';
-    let slot = this.slots.indexOf(null);
-    if (!same && slot < 0) {
-      if (replacement < 0 || replacement > 5) { this.pending = index; return 'replace'; }
+    const mounts = this.mountsFor(mapProductToWeapon(p));
+    let slot = mounts.find(i => this.slots[i] === null);
+    // The free scatter gun is a real mount occupant: displacing it is a deliberate
+    // replacement decision, same as swapping any other installed gun.
+    if (slot === undefined && !same) {
+      if (replacement < 0 || !mounts.includes(replacement)) { this.pending = index; return 'replace'; }
       slot = replacement;
     }
     wallet.money -= this.price(p);
     if (same) same.level++;
-    else this.slots[slot] = { name: p.name, type: mapProductToWeapon(p), level: 1, cooldown: 0 };
+    else this.slots[slot!] = { name: p.name, type: mapProductToWeapon(p), level: 1, cooldown: 0 };
     this.sold.add(index); this.pending = this.selected = -1; return 'bought';
   }
   repair(wallet: Wallet): boolean {

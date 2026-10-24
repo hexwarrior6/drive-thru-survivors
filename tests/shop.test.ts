@@ -20,30 +20,46 @@ test('shop draws three menu products, deducts once, upgrades same name without c
   shop.offers = demoSnapshot().stores[0].products.slice(0,3);
   const price = shop.price(shop.offers[0]);
   assert.equal(shop.buy(0,combat),'bought'); assert.equal(combat.money,1000-price);
+  const mountedAt = shop.slots.findIndex(w => w?.name === shop.offers[0]!.name);
+  assert.ok(mountedAt >= 0);
   assert.equal(shop.buy(0,combat),'unavailable');
-  for (let l=2;l<=3;l++) { shop.sold.clear(); assert.equal(shop.buy(0,combat),'bought'); assert.equal(shop.slots[1]?.level,l); }
-  shop.sold.clear(); assert.equal(shop.buy(0,combat),'unavailable'); assert.equal(shop.slots.filter(Boolean).length,2);
+  for (let l=2;l<=3;l++) { shop.sold.clear(); assert.equal(shop.buy(0,combat),'bought'); assert.equal(shop.slots[mountedAt]?.level,l); }
+  shop.sold.clear(); assert.equal(shop.buy(0,combat),'unavailable');
+  assert.equal(shop.slots.filter(Boolean).length, shop.slots.some(w => w?.type === 'starter') ? 2 : 1);
 });
-test('six full slots require selection and confirmation; cancel/insufficient funds do not spend', () => {
+test('purchases route to their mounts: front gun, rear gun, aux fills in order; the scatter gun is built in', () => {
+  const {shop,combat} = setup(); combat.money = 1000; shop.open(1);
+  // Store 1 offers: 中薯条 front · 苹果派 aux · 麦乐鸡 rear
+  assert.equal(mapProductToWeapon(shop.offers[0]!),'fries'); assert.equal(mapProductToWeapon(shop.offers[1]!),'heal'); assert.equal(mapProductToWeapon(shop.offers[2]!),'mine');
+  assert.equal(shop.buy(0,combat),'bought'); assert.equal(shop.slots[0]?.type,'fries');
+  assert.equal(shop.buy(1,combat),'bought'); assert.equal(shop.slots[2]?.type,'heal');
+  assert.equal(shop.buy(2,combat),'bought'); assert.equal(shop.slots[1]?.type,'mine');
+  assert.ok(shop.slots.every(w => w?.type !== 'starter'));
+});
+test('replacement picks only mounts the offer fits: a front gun cannot displace aux or rear slots', () => {
   const {shop,combat} = setup(); combat.money=100;
-  for(let i=0;i<6;i++) shop.slots[i]={ name:`old-${i}`,type:'burger',level:1,cooldown:0 };
+  shop.offers = [demoSnapshot().stores[0].products.find(p => p.name === '巨无霸')!];
+  for(let i=0;i<5;i++) shop.slots[i]={ name:`old-${i}`,type:'burger',level:1,cooldown:0 };
   const name=shop.offers[0].name, cost=shop.price(shop.offers[0]);
-  assert.equal(shop.buy(0,combat),'replace'); assert.equal(combat.money,100); assert.equal(shop.slots[2]?.name,'old-2');
-  shop.pending=-1; assert.equal(combat.money,100);
-  assert.equal(shop.buy(0,combat,2),'bought'); assert.equal(shop.slots[2]?.name,name); assert.equal(combat.money,100-cost);
-  combat.money=0; assert.equal(shop.buy(1,combat),'unavailable');
+  assert.equal(shop.buy(0,combat),'replace'); assert.equal(combat.money,100);
+  shop.pending=-1;
+  assert.equal(shop.buy(0,combat,2),'replace'); assert.equal(combat.money,100); assert.equal(shop.slots[2]?.name,'old-2');
+  shop.pending=-1;
+  assert.equal(shop.buy(0,combat,0),'bought'); assert.equal(shop.slots[0]?.name,name); assert.equal(combat.money,100-cost);
+  combat.money=0; assert.equal(shop.buy(0,combat),'unavailable');
 });
 test('repair costs ten, restores thirty and refuses full health or insufficient funds', () => {
   const {shop,combat} = setup(); combat.money=20; combat.health=85;
   assert.equal(shop.repair(combat),true); assert.equal(combat.health,100); assert.equal(combat.money,10);
   assert.equal(shop.repair(combat),false); combat.health=20; combat.money=9; assert.equal(shop.repair(combat),false);
 });
-test('food weapons attack automatically, starter replacement disables its turret, fries slows and burger pierces', () => {
+test('food weapons attack automatically, the built-in scatter gun stays on with rear mounts, fries slows and burger pierces', () => {
   for (const type of ['burger','fries','cola','ice','flame','mine'] as const) {
     const {shop,combat,physics,weapons}=setup();
     physics.vx=physics.vy=physics.speed=0;
-    shop.slots[0]={name:type,type,level:3,cooldown:0}; weapons.configure(physics);
-    assert.equal(combat.starterEnabled,false);
+    const mounts = shop.mountsFor(type);
+    shop.slots[mounts[0]!] = {name:type,type,level:3,cooldown:0}; weapons.configure(physics);
+    assert.equal(combat.starterEnabled,true);
     const enemy=combat.spawn(0,0,physics.progress + (type==='flame'||type==='mine'?-60: type==='cola'?75:110))!;
     enemy.hp=1000;
     for(let i=0;i<40;i++){combat.step(physics,FIXED_DT);weapons.step(physics,FIXED_DT);}

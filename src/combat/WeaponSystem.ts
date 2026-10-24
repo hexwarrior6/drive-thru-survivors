@@ -27,12 +27,12 @@ export class WeaponSystem {
   configure(p: DriftPhysics): void {
     let coffee = 0, desperate = 0;
     p.speedBonus = p.chargeBonus = p.nitroRegen = 0;
-    this.combat.starterEnabled = false; this.combat.damageMultiplier = 1;
+    // The rear scatter gun is built into every kart; mounts only ever add to it.
+    this.combat.starterEnabled = true; this.combat.damageMultiplier = 1;
     this.combat.magnetRange = this.combat.baseMagnetRange;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < this.slots.length; i++) {
       const w = this.slots[i]; if (!w) continue;
       const l = w.level;
-      if (w.type === 'starter') this.combat.starterEnabled = true;
       if (w.type === 'coffee') { coffee = Math.max(coffee, l * .05); p.chargeBonus = l === 3 ? .3 : l === 2 ? .2 : 0; p.nitroRegen = l === 3 ? 1 : 0; }
       if (w.type === 'desperate' && this.combat.health < 20 + l * 10) { desperate = Math.max(desperate, .05 + l * .05); this.combat.damageMultiplier = 1.2 - l * .05; }
       if (w.type === 'heal' && l === 3) this.combat.magnetRange = Math.max(this.combat.magnetRange, 110);
@@ -55,13 +55,14 @@ export class WeaponSystem {
   step(p: DriftPhysics, dt: number): void {
     let heal = 0, shield = 0, wing = 0;
     const c = this.combat, x = p.x - 225;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < this.slots.length; i++) {
       const w = this.slots[i]; if (!w) continue;
       const l = w.level - 1;
       if (w.type === 'heal') { heal = Math.max(heal, w.level); continue; }
       if (w.type === 'shield') { shield = Math.max(shield, w.level); continue; }
       if (w.type === 'wingman') { wing = Math.max(wing, w.level); continue; }
       if (w.type === 'starter' || w.type === 'coffee' || w.type === 'desperate') continue;
+      // Rear-mount guns supplement the built-in scatter; the starter fires from CombatSystem.
       w.cooldown = Math.max(0, w.cooldown - dt); if (w.cooldown > 0) continue;
       const s = stats[w.type], range = s.range[l];
       if (w.type === 'burger' || w.type === 'fries') {
