@@ -226,18 +226,18 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 .food-card button, .repair-button, #replacement button { min-height:44px; border:1px solid #754329; border-radius:8px; background:#ffcf52; font:700 11px system-ui; color:#354e3c; cursor:pointer; padding:4px; }
 .pit-panel button:disabled { opacity:.45; cursor:default; }
 .repair-button { width:100%; }
-#weapon-slots { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; margin:10px 0; }
-.slot-group-label { grid-row:1; font-size:8px; letter-spacing:1px; font-weight:800; color:#8a8e6b; text-align:center; padding-bottom:2px; white-space:nowrap; }
-.weapon-slot { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-height:48px; min-width:0; border:1px solid #c8b890; border-radius:8px; background:#fff9e8; font:700 9px system-ui; color:#354e3c; padding:4px 1px; white-space:nowrap; overflow:hidden; }
-.weapon-slot .slot-icon { height:18px; width:18px; flex-shrink:0; }
+#weapon-slots { display:grid; grid-template-columns:1.25fr 1.25fr 1fr 1fr 1fr; gap:5px; margin:10px 0; }
+.slot-group-label { grid-row:1; font-size:9px; letter-spacing:1px; font-weight:800; color:#8a8e6b; text-align:center; padding-bottom:3px; white-space:nowrap; }
+.weapon-slot { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; min-height:62px; min-width:0; border:1px solid #c8b890; border-radius:10px; background:#fff9e8; font:700 10px system-ui; color:#354e3c; padding:5px 2px; white-space:nowrap; overflow:hidden; }
+.weapon-slot .slot-icon { height:24px; width:24px; flex-shrink:0; }
 .weapon-slot .slot-icon svg { width:100%; height:100%; }
-.slot-icon-empty { border:1.5px dashed #c8b890; border-radius:6px; opacity:.55; box-sizing:border-box; }
-.weapon-slot .slot-empty { font-size:8px; color:#7d775f; }
+.weapon-slot .slot-level { font-size:9px; font-weight:600; color:#7d775f; }
+.slot-icon-empty { border:1.5px dashed #c8b890; border-radius:8px; opacity:.55; box-sizing:border-box; }
+.weapon-slot .slot-empty { font-size:9px; color:#7d775f; }
 .weapon-slot.locked { opacity:.35; }
 .weapon-slot.locked:hover { filter:none; }
 .mount-badge { font-style:normal; font-size:8px; font-weight:700; color:#754329; background:#ffcf5266; border-radius:4px; padding:1px 4px; margin-right:4px; vertical-align:1px; }
 .weapon-slot .slot-name { max-width:100%; overflow:hidden; text-overflow:ellipsis; }
-.weapon-slot .slot-level { font-size:8px; font-weight:600; color:#7d775f; }
 .pit-panel .weapon-slot:disabled { opacity:1; }
 .weapon-slot.replaceable { border:2px solid #e7ad29; cursor:pointer; }
 .weapon-slot.selected { background:#ffcf52; border-color:#ad4931; }
@@ -269,25 +269,26 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 #store-menu .menu-explanation { font-size:10px; color:#647663; margin-bottom:8px; }
 #menu-products { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 .menu-card .food-art { height:35px; }
-/* Desktop: reclaim the HUD space and compact the panel so the shop fits without scrolling. */
+/* Desktop: compact the panel so the shop fits without scrolling, but keep the
+   cards roomy — the taller stage leaves plenty of vertical budget. */
 @media (min-width: 701px) {
-  .pit-panel { max-height:calc(100% - 84px); padding:10px 13px; }
-  .pit-panel h2 { font-size:15px; margin:2px 0; }
+  .pit-panel { max-height:calc(100% - 60px); padding:12px 15px; }
+  .pit-panel h2 { font-size:16px; margin:3px 0; }
   #shop-source, #shop-address { font-size:9px; line-height:1.35; }
-  #shop-cards { margin:6px 0; }
-  #shop-cards .food-art { height:34px; }
-  #shop-cards .food-art svg { width:58px; }
-  .food-card { padding:6px; }
+  #shop-cards { margin:8px 0; }
+  #shop-cards .food-art { height:42px; }
+  #shop-cards .food-art svg { width:62px; }
+  .food-card { padding:7px; }
   .food-card h3 { font-size:12px; margin:4px 0; }
-  .food-card p { margin:4px 0 6px; }
-  .food-card button, .repair-button { min-height:36px; }
-  #weapon-slots { margin:5px 0; }
-  .weapon-slot { height:44px; min-height:0; padding:2px 1px; }
-  .weapon-slot .slot-name { font-size:8px; letter-spacing:0; }
+  .food-card p { margin:5px 0 7px; }
+  .food-card button, .repair-button { min-height:40px; }
+  #weapon-slots { margin:6px 0; }
+  .weapon-slot { height:58px; min-height:0; padding:3px 2px; }
+  .weapon-slot .slot-name { font-size:9px; letter-spacing:0; }
   #store-menu { margin:6px 0; }
   #store-menu summary { min-height:0; padding-top:5px; }
-  .pit-panel .shop-note { margin-bottom:4px; }
-  .pit-panel .primary { padding:8px 14px; }
+  .pit-panel .shop-note { margin-bottom:5px; }
+  .pit-panel .primary { padding:9px 14px; }
 }
 #next-wave { position:sticky; bottom:0; z-index:2; box-shadow:0 -8px 10px #fff9e8; }
 /* When the panel scrolls (short viewports), keep room so the sticky CTA never buries content. */
