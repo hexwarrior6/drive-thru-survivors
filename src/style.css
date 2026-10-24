@@ -57,20 +57,49 @@ kbd{display:inline-block;min-width:32px;text-align:center;padding:7px 6px;border
 .stage{width:100%;height:var(--race-height);flex-shrink:0;position:relative;overflow:hidden;border:6px solid #fff9e8;border-radius:26px;background:#fcf3d9;box-shadow:0 0 0 1px #75432930,0 18px 38px #354e3c17}
 #game{position:absolute;inset:0}
 #game canvas{display:block!important}
-.hud{position:absolute;top:0;left:0;right:0;padding:10px 15px 9px;background:#fff9e8ed;border-bottom:1px solid #75432920;border-radius:0 0 14px 14px;pointer-events:none}
-.hud-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 104px;align-items:center;gap:8px}
+/* Instrument-cluster HUD: floating pods over the world instead of one full-width bar.
+   All cards share one token set so radius, border and shadow stay identical. */
+.hud{position:absolute;top:0;left:0;right:0;padding:10px 12px 8px;pointer-events:none;--card-bg:#fff9e8f0;--card-border:#75432926;--card-shadow:0 3px 0 #75432914;--card-radius:12px}
+.hud-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:8px}
 .micro{font-size:8px;letter-spacing:1.6px;display:block;color:#78846c;font-weight:700}
 .hud strong{font-size:28px;font-weight:850;line-height:1.1;letter-spacing:-1px;font-variant-numeric:tabular-nums}
-.unit{font-size:8px;margin-left:3px}
-.wave-readout{text-align:center}
-.wave-readout strong{font-size:24px;color:#b75d36;letter-spacing:0}
-.hud-meta{display:flex;justify-content:space-between;gap:8px;margin-top:3px;font-size:9px;color:#78846c;font-variant-numeric:tabular-nums}
-.hud-bars{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:7px}
+/* Amap-style speed pod: big number with its own gauge on a floating card. */
+.speed-readout{justify-self:start;min-width:112px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--card-radius);padding:6px 12px 8px;box-shadow:var(--card-shadow)}
+.speed-readout .micro i{font-style:normal;font-size:7px;letter-spacing:.5px;color:#a49170;margin-left:2px}
+.speed-track{height:5px;margin-top:5px;background:#354e3c1f;border-radius:9px;overflow:hidden}
+.speed-track>div{height:100%;width:0;border-radius:9px;background:linear-gradient(90deg,#8bbf57,#ffcf52 55%,#e75239);transition:width .15s}
+/* Wave clock lives inside a depleting ring on a soft disc; urgency turns it red under 10s. */
+.wave-readout{position:relative;width:54px;height:54px;justify-self:center}
+.wave-ring{position:absolute;inset:0;width:100%;height:100%}
+.wave-ring circle{fill:none;stroke-width:4}
+.wave-ring .ring-disc{fill:#fff9e8e8;stroke:none}
+.wave-ring .ring-bg{stroke:#354e3c17}
+.wave-ring .ring-fg{stroke:#b75d36;stroke-linecap:round;stroke-dasharray:119.4;transition:stroke-dashoffset .2s linear,stroke .3s}
+.hud .wave-readout strong{position:absolute;left:0;right:0;top:10px;font-size:16px;line-height:1;color:#b75d36;letter-spacing:0;text-align:center}
+.hud .wave-readout strong.as-text{font-size:9px;top:19px;letter-spacing:1px}
+.wave-caption{position:absolute;left:0;right:0;top:29px;text-align:center;font-size:6.5px;letter-spacing:1.2px;font-weight:800;color:#a49170}
+.wave-caption b{color:#78846c}
+.hud-actions{justify-self:end}
+.hud .icon-button{border-radius:var(--card-radius);box-shadow:var(--card-shadow)}
+/* One slim status chip for vitals and economy, kept off the pod's visual channel. */
+.hud-strip{margin-top:8px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--card-radius);padding:7px 12px 6px;box-shadow:var(--card-shadow);display:flex;flex-direction:column;gap:6px}
+.hud-meta{display:flex;align-items:center;gap:14px;margin:0;font-size:9px;color:#78846c;font-variant-numeric:tabular-nums}
+.eco{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.eco svg{flex-shrink:0}
+.eco b{font-size:15px;font-weight:850;line-height:1;color:#354e3c}
+.eco-kills b{font-size:11px;font-weight:750;color:#78846c}
+.hud-meta #distance{margin-left:auto;font-size:9px}
+.hud-bars{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0}
 .health-row,.nitro-row{display:flex;align-items:center;gap:7px;font-size:9px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.nitro-track{height:4px;flex:1;min-width:12px;background:#354e3c20;border-radius:9px;overflow:hidden}
+.health-row{color:#6b9d57}
+.nitro-row{color:#c49a3e}
+.health-row b,.nitro-row b{color:#354e3c;min-width:20px;text-align:right}
+.health-row.low{color:#e75239}
+.health-row.low b{color:#e75239}
+.nitro-track{height:6px;flex:1;min-width:12px;background:#354e3c1f;border-radius:9px;overflow:hidden}
 .nitro-track>div{height:100%;width:100%;background:#3d85c6;border-radius:9px;transition:width .1s}
 #health-fill{background:#6b9d57}
-.combat-tactic{margin-top:7px;font-size:9px;line-height:1.4;color:#3d7180;font-weight:650}
+.combat-tactic{margin-top:5px;font-size:9px;line-height:1.4;color:#3d7180;font-weight:650}
 .combat-tactic.danger{color:#bd4735}
 .title-panel,.pause-panel{position:absolute;left:22px;right:22px;top:20%;text-align:center;padding:25px 21px 23px;background:#fff9e8f5;border:1px solid #75432940;border-radius:18px;box-shadow:0 8px 0 #354e3c1c}
 .title-tag{font-size:8px;letter-spacing:2px;font-weight:800;color:#b3663d}
@@ -258,10 +287,7 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 
   .hud strong { font-size:24px; }
 
-  .wave-readout strong { font-size:22px; }
-
-  .unit { font-size:8px; margin-left:2px; }
-
+  .hud .wave-readout strong { font-size:13px; top:12px; }
 
   .title-panel h2 { font-size:28px; }
 
@@ -304,7 +330,6 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 .pit-panel { left:12px; right:12px; margin-inline:auto; width:calc(100% - 24px); max-width:530px; bottom:12px; max-height:calc(100% - 115px); overflow:auto; padding:14px; box-sizing:border-box; pointer-events:auto; }
 .pit-panel h2 { font-size:18px; margin:5px 0; }
 #shop-source { color:#647663; font-size:10px; }
-#shop-balance { font-weight:800; padding:5px 0; }
 #shop-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin:8px 0; }
 .food-card { border:1px solid #c8b890; border-radius:12px; background:#fcf3d9; padding:7px; min-width:0; text-align:left; display:flex; flex-direction:column; }
 .food-art { height:48px; text-align:center; }
@@ -347,7 +372,9 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 .destination-panel .primary { min-height:44px; padding:10px 14px; font-size:14px; display:block; width:100%; text-align:center; }
 .destination-panel button:disabled,.city-row input:disabled { opacity:.6; cursor:default; }
 .destination-panel #destination-status { font-size:9px; line-height:1.5; min-height:14px; margin:10px 0 0; color:#78846c; text-align:center; }
-.next-stop { font-size:10px; line-height:1.4; color:#754329; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px; }
+.next-stop { width:fit-content; max-width:100%; font-size:10px; line-height:1.5; color:#754329; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:5px; padding:2px 11px; background:#fff9e8e0; border:1px solid #7543291f; border-radius:999px; box-shadow:0 2px 0 #75432910; }
+.combat-tactic { width:fit-content; max-width:100%; padding:2px 11px; background:#fff9e8e0; border:1px solid #7543291f; border-radius:999px; box-shadow:0 2px 0 #75432910; }
+.combat-tactic.danger { background:#fbe7df; border-color:#e7523940; color:#bd4735; }
 #shop-address { font-size:10px; color:#647663; }
 .product-highlight { display:block; background:#ffcf5266; border-radius:4px; color:#754329; font-size:9px; padding:3px; margin-bottom:4px; }
 #store-menu { text-align:left; margin:8px 0; border:1px solid #c8b890; padding:8px; border-radius:8px; }
@@ -355,16 +382,20 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 #store-menu .menu-explanation { font-size:10px; color:#647663; margin-bottom:8px; }
 #menu-products { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 .menu-card .food-art { height:35px; }
-/* Pit stop: the HUD slims down to the pause/sound controls; money and health live in the shop panel. */
-body.is-pit .speed-readout, body.is-pit .wave-readout, body.is-pit .hud-meta,
-body.is-pit .hud-bars, body.is-pit #next-stop, body.is-pit .combat-tactic { display:none; }
-body.is-pit .hud-row { display:flex; justify-content:flex-end; }
+/* Pit stop: the HUD slims down but keeps the two decision numbers — money and health —
+   repositioned into the top bar while speed, clock and nitro are irrelevant at a stop. */
+body.is-pit .speed-readout, body.is-pit .wave-readout,
+body.is-pit #next-stop, body.is-pit .combat-tactic { display:none; }
+body.is-pit .hud { display:flex; align-items:center; gap:12px; }
+body.is-pit .hud-row { display:contents; }
+body.is-pit .hud-strip { order:-1; flex:1; flex-direction:row-reverse; align-items:center; gap:14px; margin:0; }
+body.is-pit .hud-bars { flex:1; grid-template-columns:1fr; gap:0; }
+body.is-pit .nitro-row, body.is-pit .eco-kills, body.is-pit #distance { display:none; }
 /* Desktop: reclaim the HUD space and compact the panel so the shop fits without scrolling. */
 @media (min-width: 701px) {
   .pit-panel { max-height:calc(100% - 84px); padding:10px 13px; }
   .pit-panel h2 { font-size:15px; margin:2px 0; }
   #shop-source, #shop-address { font-size:9px; line-height:1.35; }
-  #shop-balance { padding:3px 0; }
   #shop-cards { margin:6px 0; }
   #shop-cards .food-art { height:34px; }
   #shop-cards .food-art svg { width:58px; }

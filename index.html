@@ -10,21 +10,23 @@
 <div id="stage" class="stage"><div id="game" aria-label="三车道赛车游戏画布"></div>
 <div id="hud" class="hud hidden" aria-label="驾驶与波次状态">
   <div class="hud-row">
-    <div class="speed-readout"><span class="micro">SPEED</span><strong id="speed">000</strong><span class="unit">km/h</span></div>
-    <div class="wave-readout"><span class="micro">WAVE <b id="wave-number">01</b></span><strong id="wave-clock">45s</strong></div>
+    <div class="speed-readout"><span class="micro">SPEED <i>km/h</i></span><strong id="speed">000</strong><div class="speed-track"><div id="speed-fill"></div></div></div>
+    <div class="wave-readout"><svg class="wave-ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="ring-disc" cx="22" cy="22" r="21"/><circle class="ring-bg" cx="22" cy="22" r="19"/><circle id="wave-ring" class="ring-fg" cx="22" cy="22" r="19" transform="rotate(-90 22 22)"/></svg><strong id="wave-clock">45s</strong><span class="wave-caption">WAVE <b id="wave-number">01</b></span></div>
     <div class="hud-actions" role="group" aria-label="游戏控制"><button id="pause" class="icon-button" aria-label="暂停游戏" aria-pressed="false" title="暂停 / 继续（P）"><svg viewBox="0 0 24 24" aria-hidden="true"><g class="pause-mark"><path d="M8 5v14M16 5v14"/></g><g class="play-mark"><path d="m9 5 10 7-10 7Z"/></g></svg></button></div>
   </div>
-  <div class="hud-meta"><span id="distance">0.00 km</span><span>金币 <b id="coins">0</b> · 击破 <b id="kills">0</b></span></div>
-  <div class="hud-bars">
-    <div class="health-row"><span>车况 <b id="health">100</b></span><div class="nitro-track"><div id="health-fill"></div></div></div>
-    <div class="nitro-row"><span>N₂ <b id="nitro">100</b></span><div class="nitro-track"><div id="nitro-fill"></div></div></div>
+  <div class="hud-strip">
+    <div class="hud-bars">
+      <div class="health-row" id="health-row"><div class="nitro-track"><div id="health-fill"></div></div><b id="health">100</b></div>
+      <div class="nitro-row" id="nitro-row"><div class="nitro-track"><div id="nitro-fill"></div></div><b id="nitro">100</b></div>
+    </div>
+    <div class="hud-meta"><span class="eco" id="eco-money"><b id="coins">0</b></span><span class="eco eco-kills" id="eco-kills"><b id="kills">0</b></span><span id="distance">0.00 km</span></div>
   </div>
   <div id="next-stop" class="next-stop"></div><div id="combat-tactic" class="combat-tactic">前方避障 · 等待追兵</div>
   <div class="road-readout"><span id="road-name">起步直道</span><b id="road-turn">前方右弯 ↗</b></div>
 </div>
 <div id="pit-panel" class="pause-panel pit-panel hidden" role="dialog" aria-modal="true" aria-labelledby="pit-heading">
 <span class="title-tag">DRIVE-THRU · 武装补给</span><h2 id="pit-heading">安全进站</h2>
-<p id="shop-source"></p><p id="shop-address"></p><p class="menu-scope">菜单差异仅比较本次候选店，不代表门店独家。</p><p id="shop-balance"></p><div id="shop-cards"></div>
+<p id="shop-source"></p><p id="shop-address"></p><div id="shop-cards"></div>
 <details id="store-menu"><summary id="menu-summary">查看本店其他餐品</summary><p class="menu-explanation">按本次候选店菜单差异和名称标记推荐，不代表门店独家。仅列已核价单品。</p><div id="menu-products"></div></details>
 <button id="repair" class="repair-button">维修 +30 车况 · 10 金币</button>
 <div id="weapon-slots" aria-label="六个武器槽位"></div>

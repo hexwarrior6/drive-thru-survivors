@@ -24,3 +24,9 @@ const paths: Record<StatIcon, string> = {
 export function statIcon(name: StatIcon, size = 10): string {
   return `<svg class="stat-icon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 }
+
+/** Same drawing recolored through currentColor so CSS can drive the state color. */
+export function monoIcon(name: StatIcon, size = 12): string {
+  const mono = paths[name].replace(/(fill|stroke)="#[0-9a-fA-F]{3,8}"/g, '$1="currentColor"');
+  return `<svg class="stat-icon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${mono}</svg>`;
+}

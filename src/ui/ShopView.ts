@@ -16,10 +16,9 @@ export class ShopView {
   open(wave: number): void { this.shop.open(wave); this.expandedMenu = false; this.render(); }
   private render(): void {
     const s = this.shop, w = this.wallet;
-    document.getElementById('shop-source')!.textContent = this.reason;
+    document.getElementById('shop-source')!.textContent = this.reason + (s.store.referenceTime ? ' · 预约菜单参考 ' + s.store.referenceTime : '');
     document.getElementById('pit-heading')!.textContent = s.store.name;
     document.getElementById('shop-address')!.textContent = s.store.address;
-    document.getElementById('shop-balance')!.textContent = `金币 ${w.money} · 车况 ${Math.ceil(w.health)}/100${s.store.referenceTime ? ' · 预约菜单参考 ' + s.store.referenceTime : ''}`;
     const cards = document.getElementById('shop-cards')!; cards.replaceChildren();
     const menu = document.getElementById('menu-products')!; menu.replaceChildren();
     s.offers.forEach((p, i) => {

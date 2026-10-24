@@ -91,6 +91,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.combatView = new CombatView(this, this.combat, this.track.projection);
     this.pitPanel.classList.add('hidden'); this.disabledPanel.classList.add('hidden');
+    document.body.classList.remove('is-pit');
     this.audio = new AudioSynth();
     this.audio.setMuted(this.registry.get('muted') === true);
     this.audio.unlock();
@@ -105,6 +106,7 @@ export class GameScene extends Phaser.Scene {
       this.weapons.clear();
       this.updateDestination(this.wave.number + 1);
       this.wave.next(this.combat, this.player.physics); this.pitPanel.classList.add('hidden');
+      document.body.classList.remove('is-pit');
       document.getElementById('drive-ui')!.classList.remove('hidden');
       this.inputControls.clear(); this.audio.setPaused(false);
       this.player.physics.nitro = Math.min(100, this.player.physics.nitro + 20);
@@ -164,7 +166,7 @@ export class GameScene extends Phaser.Scene {
     if (before !== this.wave.state) {
       this.hud.update(p, 0);
       if (this.wave.state === 'entering') { this.weapons.clear(); this.hud.showNotice('正在驶入 · ' + this.shop.destination(this.wave.number).name, 3); }
-      if (this.wave.state === 'pit') { this.shopView.open(this.wave.number); this.pitPanel.classList.remove('hidden'); document.getElementById('drive-ui')!.classList.add('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
+      if (this.wave.state === 'pit') { this.shopView.open(this.wave.number); this.pitPanel.classList.remove('hidden'); document.body.classList.add('is-pit'); document.getElementById('drive-ui')!.classList.add('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
       this.hud.updateCombat(this.combat, this.wave);
     }
     this.elapsed += FIXED_DT;
