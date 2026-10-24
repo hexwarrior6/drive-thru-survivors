@@ -72,3 +72,5 @@ npm run dev             # 前端 http://127.0.0.1:5173
 npm run dev:server      # 只读网关 http://127.0.0.1:3002（/api/health、/api/status）
 npm test                # 74 项自动测试，含 MCP 白名单与快照降级检查
 ```
+
+线上部署：见 [README.md](README.md)「在线部署（Vercel）」——同一套网关代码经 `api/index.ts` 胶水函数原样上云，Token 配置在 Vercel 环境变量。

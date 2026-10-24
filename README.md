@@ -50,6 +50,22 @@ npm run build # TypeScript 严格检查与生产构建
 npm run preview # 预览生产构建：http://127.0.0.1:4173/
 ```
 
+## 在线部署（Vercel）
+
+仓库已自带 Vercel 适配，链接仓库即可部署，无需改代码：
+
+1. 打开 [vercel.com](https://vercel.com) → **Add New… → Project**，导入 GitHub 仓库 `hexwarrior6/drive-thru-survivors`
+2. Framework Preset 自动识别为 **Vite**（Build Command `npm run build`，输出目录 `dist/`），其余保持默认
+3. **Environment Variables** 添加 `MCDONALDS_MCP_TOKEN`（open.mcd.cn/mcp 控制台获取，勾选 Production 与 Preview）
+4. 点击 **Deploy**
+
+部署后的行为：
+
+- 前端静态资源与 `/api/*` 网关同域；`vercel.json` 把 `/api/*` 重写到 `api/index.ts` 函数，函数内部直接复用 `server/app.ts` 的 Fastify 网关——与本地 `npm run dev:server` 完全同一套代码
+- 函数时长在 `vercel.json` 配置为 120 秒，覆盖快照构建最坏 55 秒的 MCP 管线；需保持项目开启 Fluid Compute（Vercel 新项目默认开启）
+- 冷启动后的第一次 `/api/snapshot` 要真实跑完整个 MCP 管线，可能耗时数十秒，属正常现象；同一城市 15 分钟内命中网关缓存
+- 未配置 Token 时线上同样自动降级为示例数据，并在游戏内明确标注离线示例
+
 ## 关联项目
 
 - **codex-6.1-sol**（同作者姊妹项目 McPitstop 的一部分）：本项目复用了其 MCP 网关代码、SVG 美术资产坐标与配色、Web Audio 音效合成方案

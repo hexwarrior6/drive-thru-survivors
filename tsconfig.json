@@ -6,5 +6,5 @@
     "noUnusedLocals": true, "noUnusedParameters": true,
     "verbatimModuleSyntax": true, "types": ["vite/client", "node"]
   },
-  "include": ["src", "server", "tests", "vite.config.ts"]
+  "include": ["api", "src", "server", "tests", "vite.config.ts"]
 }
