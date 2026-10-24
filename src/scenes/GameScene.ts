@@ -10,9 +10,10 @@ import { CombatView } from '../combat/CombatView';
 import { PitStopView } from '../systems/PitStopView';
 import { WaveSystem } from '../systems/WaveSystem';
 import { BASE_SPEED, FIXED_DT, ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
-import { C, TIER_COLORS } from '../data/colors';
+import { C, TIER_COLORS, TIER_SMOKE } from '../data/colors';
 import { Player } from '../entities/Player';
 import { ParticleManager } from '../effects/ParticleManager';
+import { SkidMarks } from '../effects/SkidMarks';
 import { AudioSynth } from '../effects/AudioSynth';
 import { ScreenShake } from '../effects/ScreenShake';
 import { TrackGenerator } from '../systems/TrackGenerator';
@@ -47,6 +48,7 @@ export class GameScene extends Phaser.Scene {
   private hud!: HUD;
   private lines!: Phaser.GameObjects.Graphics;
   private skid!: Phaser.GameObjects.Graphics;
+  private skidMarks!: SkidMarks;
   private shake = new ScreenShake();
   private accumulator = 0;
   private elapsed = 0;
@@ -72,6 +74,7 @@ export class GameScene extends Phaser.Scene {
     this.track = new TrackGenerator(this);
     this.skid = this.add.graphics().setDepth(2);
     this.lines = this.add.graphics().setDepth(6);
+    this.skidMarks = new SkidMarks(this.track.projection);
     this.particles = new ParticleManager(this, this.track.projection);
     this.player = new Player(this);
     this.combat = new CombatSystem(this.particles);
@@ -167,6 +170,7 @@ export class GameScene extends Phaser.Scene {
     this.elapsed += FIXED_DT;
     this.track.setProgress(p.previousProgress, p.progress);
     this.particles.update(FIXED_DT);
+    this.skidMarks.update(FIXED_DT);
     this.kick *= 0.84;
     if (p.released > 0 || p.didBoost) {
       this.kick = p.didBoost ? 9 : 4 + p.released * 2;
@@ -182,13 +186,21 @@ export class GameScene extends Phaser.Scene {
     }
     if (p.drifting) {
       const cos = Math.cos(p.heading), sin = Math.sin(p.heading);
+      let leftX = 0, leftZ = 0, rightX = 0, rightZ = 0;
       for (let side = -1; side <= 1; side += 2) {
         const x = p.x - 225 + side * 22 * cos - 24 * sin;
         const y = p.progress - 24 * cos - side * 22 * sin;
-        this.particles.emit(x, y, 0xd9ddd0, -p.vx * 0.15 + (Math.random() - 0.5) * 35, 20, 0.5, 7 + Math.random() * 5, true);
-        if (p.tier > 0) this.particles.emit(x, y, TIER_COLORS[p.tier], (Math.random() - 0.5) * 130, -40 - Math.random() * 95, 0.2, 2 + Math.random() * 3);
+        if (side < 0) { leftX = x; leftZ = y; } else { rightX = x; rightZ = y; }
+        // The plume itself takes the stage tint; saturated puffs and sparks carry the exact color.
+        this.particles.emit(x, y, TIER_SMOKE[p.tier], -p.vx * 0.15 + (Math.random() - 0.5) * 35, 20, 0.5, 7 + Math.random() * 5, true, p.tier > 0 ? 0.5 : 0);
+        if (p.tier > 0) {
+          const color = TIER_COLORS[p.tier];
+          this.particles.emit(x, y, color, -p.vx * 0.1 + (Math.random() - 0.5) * 55, -15 - Math.random() * 55, 0.34 + Math.random() * 0.12, 5 + Math.random() * 4, true, 0.55);
+          this.particles.emit(x, y, color, (Math.random() - 0.5) * 130, -40 - Math.random() * 95, 0.24, 3 + Math.random() * 3);
+        }
       }
-    }
+      this.skidMarks.record(leftX, leftZ, rightX, rightZ);
+    } else this.skidMarks.breakTrail();
     if (p.nitroTime > 0 || p.pulseTime > 0) {
       for (let i = 0; i < 3; i++) this.particles.emit(p.x - 225 - Math.sin(p.heading) * 31 + (Math.random() - 0.5) * 17, p.progress - Math.cos(p.heading) * 32, i === 0 ? C.blue : C.orange, -p.vx * 0.2, -100 - Math.random() * 120, 0.3, 5 + Math.random() * 8);
     }
@@ -214,6 +226,7 @@ export class GameScene extends Phaser.Scene {
     this.weaponView.draw(this.player.physics, this.elapsed);
     this.combatView.drawTurret(this.player.physics, alpha, this.reducedMotion ? 0 : this.kick);
     this.particles.draw();
+    this.skidMarks.draw(this.skid);
     this.player.sprite.setAlpha(this.combat.impact ? 0.55 : 1);
     this.shake.update(this.cameras.main, delta / 1000);
     const zoomTarget = !this.reducedMotion && this.player.physics.nitroTime > 0 ? 0.97 : 1;
@@ -252,17 +265,7 @@ export class GameScene extends Phaser.Scene {
   }
   private drawEffects(): void {
     const p = this.player.physics;
-    this.lines.clear(); this.skid.clear();
-    if (p.drifting) {
-      this.skid.lineStyle(3, 0x2d3934, 0.25);
-      for (let side = -1; side <= 1; side += 2) {
-        const projection = this.track.projection;
-        projection.project(p.progress - 24, p.x - 225 + side * 20);
-        const x = projection.x, y = projection.y;
-        projection.project(p.progress - 80, p.x - 225 + side * 20 - p.lateralSpeed * 0.12);
-        this.skid.lineBetween(x, y, projection.x, projection.y);
-      }
-    }
+    this.lines.clear();
     if (this.reducedMotion) return;
     const strength = clamp((p.speed / BASE_SPEED - 0.7) / 0.8, 0, 1);
     this.lines.lineStyle(1.4, C.panel, strength * 0.48);

@@ -6,3 +6,5 @@ export const C = {
   orange: 0xffa13f, purple: 0xc394ff,
 } as const;
 export const TIER_COLORS = [C.lane, C.blue, C.orange, C.purple] as const;
+/** Pastel plume tints so the drift stage reads at a glance; index 0 is neutral rubber smoke. */
+export const TIER_SMOKE = [0xd9ddd0, 0xc6e0ff, 0xffd9b2, 0xe7d4ff] as const;
