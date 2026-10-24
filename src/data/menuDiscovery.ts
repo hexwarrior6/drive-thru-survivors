@@ -1,4 +1,4 @@
-import type { Product } from './snapshot';
+import type { Product } from './snapshot.js';
 export function normalizeProductName(name: string): string { return name.normalize('NFKC').replace(/\s+/g, '').toLowerCase(); }
 /** Presence comes from complete candidate menu lists, before the quote selection limit. */
 export function discoveryScore(p: Product): number {

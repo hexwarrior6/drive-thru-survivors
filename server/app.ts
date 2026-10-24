@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
 import { DataError, withMcp, buildSnapshot, type McpCall } from './mcp.js';
-import { demoSnapshot, type Snapshot } from '../src/data/snapshot';
+import { demoSnapshot, type Snapshot } from '../src/data/snapshot.js';
 
 export function createApp(token='', testCall?:McpCall){
   const app=Fastify({logger:false,bodyLimit:4096});

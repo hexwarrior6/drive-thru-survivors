@@ -1,8 +1,8 @@
 /** Read-only MCP pipeline adapted from McPitstop/codex-6.1-sol. */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { discoveryScore, normalizeProductName } from '../src/data/menuDiscovery';
-import { categories, snapshotSchema, type Category, type Snapshot, type Store } from '../src/data/snapshot';
+import { discoveryScore, normalizeProductName } from '../src/data/menuDiscovery.js';
+import { categories, snapshotSchema, type Category, type Snapshot, type Store } from '../src/data/snapshot.js';
 
 export const allowedTools = ['query-nearby-stores','query-meals','query-meal-detail','calculate-price','campaign-calendar','query-store-coupons'] as const;
 type Tool = typeof allowedTools[number];
