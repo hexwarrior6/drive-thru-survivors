@@ -19,6 +19,12 @@ export class BootScene extends Phaser.Scene {
     g.fillStyle(C.border); g.fillRoundedRect(10, 59, 36, 5, 2);
     g.fillStyle(C.gold); g.fillRect(14, 64, 6, 3); g.fillRect(36, 64, 6, 3);
     g.generateTexture('car', 56, 74); g.clear();
+    g.fillStyle(C.border); g.fillCircle(12, 23, 10);
+    g.fillStyle(C.gold); g.fillCircle(12, 23, 7);
+    g.fillStyle(C.border); g.fillRoundedRect(7, 0, 10, 24, 3);
+    g.fillStyle(0x80c6c3); g.fillRoundedRect(9, 2, 6, 20, 2);
+    g.fillStyle(C.panel); g.fillRect(10, 2, 2, 9);
+    g.generateTexture('turret', 24, 34); g.clear();
     // roundTree's layered crown and offset ground shadow from the reuse guide.
     g.fillStyle(0x354e3c, 0.15); g.fillEllipse(33, 53, 46, 17);
     g.fillStyle(C.border); g.fillRoundedRect(27, 27, 8, 29, 3);
@@ -45,7 +51,44 @@ export class BootScene extends Phaser.Scene {
     g.lineTo(67, 7); g.lineTo(72, 5); g.lineTo(77, 18); g.lineTo(82, 5); g.lineTo(87, 7); g.lineTo(89, 18); g.strokePath();
     g.generateTexture('cafe', 108, 96); g.clear();
     g.fillStyle(0xffffff); g.fillCircle(8, 8, 8); g.generateTexture('particle', 16, 16);
-    g.destroy();
+    g.clear();
+    g.fillStyle(C.border); g.fillRoundedRect(2, 29, 36, 10, 3);
+    g.fillStyle(C.orange); g.fillTriangle(20, 1, 5, 33, 35, 33);
+    g.fillStyle(C.panel); g.fillRect(13, 15, 14, 5);
+    g.lineStyle(2, C.border); g.strokeTriangle(20, 1, 5, 33, 35, 33);
+    g.generateTexture('cone', 40, 40); g.clear();
+    g.fillStyle(C.border); g.fillCircle(12, 38, 5); g.fillCircle(35, 38, 5);
+    g.fillStyle(0xc5d3cf); g.fillRoundedRect(7, 7, 35, 25, 4);
+    g.lineStyle(3, C.border); g.strokeRoundedRect(7, 7, 35, 25, 4);
+    g.lineBetween(3, 2, 7, 7); g.lineBetween(14, 12, 14, 27); g.lineBetween(24, 12, 24, 27); g.lineBetween(34, 12, 34, 27);
+    g.lineBetween(9, 20, 40, 20); g.generateTexture('cart', 48, 46); g.clear();
+    g.fillStyle(C.border); g.fillRoundedRect(15, 0, 10, 55, 4);
+    g.fillStyle(0xad3945); g.fillRoundedRect(7, 12, 26, 30, 8);
+    g.fillStyle(C.gold); g.fillRoundedRect(10, 6, 20, 15, 6);
+    g.fillStyle(0x3c717a); g.fillRoundedRect(12, 8, 16, 6, 3);
+    g.lineStyle(3, C.border); g.lineBetween(1, 20, 39, 20);
+    g.generateTexture('rider', 40, 56); g.clear();
+    g.fillStyle(C.orange); g.fillRoundedRect(0, 0, 10, 22, 5);
+    g.fillStyle(C.panel); g.fillRoundedRect(3, 2, 4, 14, 2);
+    g.generateTexture('bullet', 10, 22); g.clear();
+    g.fillStyle(C.border); g.fillCircle(10, 10, 9);
+    g.fillStyle(C.gold); g.fillCircle(10, 10, 7);
+    g.fillStyle(0xffedaa); g.fillRect(8, 5, 3, 9);
+    g.generateTexture('coin', 20, 20); g.destroy();
+    // Cache digit bitmaps at boot; combat never updates Text or rasterizes a canvas.
+    const digit = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '18px', fontStyle: 'bold', color: '#fff2cb', stroke: '#754329', strokeThickness: 3 });
+    for (let i = 0; i < 10; i++) {
+      digit.setText(String(i));
+      const texture = this.textures.createCanvas('digit' + i, 18, 26)!;
+      texture.context.drawImage(digit.canvas, 0, 0); texture.refresh();
+    }
+    digit.destroy();
+    for (const key of ['cone', 'cart', 'rider']) {
+      const source = this.textures.get(key).getSourceImage() as HTMLCanvasElement;
+      const hit = this.textures.createCanvas(key + '-hit', source.width, source.height)!;
+      hit.context.drawImage(source, 0, 0); hit.context.globalCompositeOperation = 'source-in';
+      hit.context.fillStyle = '#ffffff'; hit.context.fillRect(0, 0, source.width, source.height); hit.refresh();
+    }
     this.scene.start('Title');
   }
 }

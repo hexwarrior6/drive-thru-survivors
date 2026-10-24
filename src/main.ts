@@ -27,5 +27,13 @@ if (import.meta.env.DEV) Object.defineProperty(window, '__driveThru', { configur
     x: p?.x, heading: p?.heading, vx: p?.vx, vy: p?.vy, speed: p?.speed, charge: p?.charge,
     tier: p?.tier, drifting: p?.drifting, nitro: p?.nitro, nitroTime: p?.nitroTime,
     driftCount: p?.driftCount, purpleCount: p?.purpleCount, wallHits: p?.wallHits,
+    combat: scene?.combat ? { wave: scene.wave.number, remaining: scene.wave.remaining, state: scene.wave.state,
+      pursuers: scene.combat.pursuers, targetDistance: scene.combat.targetDistance, pellets: scene.combat.pelletsFired,
+      aimX: scene.combat.aimX, aimZ: scene.combat.aimZ, targetSlot: scene.combat.targetSlot,
+      health: scene.combat.health, money: scene.combat.money, kills: scene.combat.kills, shots: scene.combat.shots, hits: scene.combat.hits,
+      enemies: scene.combat.enemies.activeCount, bullets: scene.combat.bullets.activeCount, coins: scene.combat.coins.activeCount,
+      visibleEnemies: scene.combatView.visibleEnemies, visibleBullets: scene.combatView.visibleBullets,
+      visibleParticles: scene.particles.visibleCount, damageNumbers: scene.combat.damage.activeCount, ramDamage: scene.combat.lastRamDamage,
+      droppedBullets: scene.combat.bullets.dropped, droppedEnemies: scene.combat.enemies.dropped } : undefined,
     audio: scene?.audio?.diagnostics, particles: scene?.particles?.activeCount, fps: game.loop.actualFps };
 } });

@@ -16,7 +16,7 @@ export function installRaceLayout(game: Phaser.Game): () => void {
   const sync = () => {
     if (mobile.matches) {
       driveUI.prepend(charge);
-      driveUI.append(cruise);
+      charge.append(cruise);
     } else {
       telemetry.append(charge);
       settings.append(cruise);
@@ -36,14 +36,14 @@ export function installRaceLayout(game: Phaser.Game): () => void {
   return () => { observer.disconnect(); mobile.removeEventListener('change', sync); };
 }
 
-/** Position the car in the lower third of the usable road, above all touch UI. */
+/** Keep a visible pursuit lane behind the car and above the touch UI. */
 export function getCarY(): number { return carY; }
 
 export function updateCarY(viewHeight: number): void {
-  if (!matchMedia(mobileQuery).matches) { carY = viewHeight * 0.68; return; }
+  if (!matchMedia(mobileQuery).matches) { carY = viewHeight * 0.52; return; }
   const stage = document.getElementById('game')!.getBoundingClientRect();
   const controls = document.getElementById('drive-ui')!.getBoundingClientRect();
-  if (controls.height === 0 || stage.width === 0) { carY = viewHeight * 0.64; return; }
+  if (controls.height === 0 || stage.width === 0) { carY = viewHeight * 0.52; return; }
   const controlsTop = (controls.top - stage.top) * WIDTH / stage.width;
-  carY = Math.max(120, Math.min(viewHeight * 0.68, controlsTop - 78));
+  carY = Math.max(120, Math.min(viewHeight * 0.51, controlsTop - 210));
 }

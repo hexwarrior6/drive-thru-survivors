@@ -1,0 +1,85 @@
+import Phaser from 'phaser';
+import type { DriftPhysics } from '../systems/DriftPhysics';
+import type { CombatSystem } from './CombatSystem';
+import type { TrackProjection } from '../systems/TrackProjection';
+const ENEMY_TEXTURES = ['cone', 'cart', 'rider'];
+const HIT_TEXTURES = ['cone-hit', 'cart-hit', 'rider-hit'];
+/** Sprites (including three cached digit sprites per damage number) are created once. */
+export class CombatView {
+  private readonly enemies: Phaser.GameObjects.Image[] = [];
+  private readonly bullets: Phaser.GameObjects.Image[] = [];
+  private readonly coins: Phaser.GameObjects.Image[] = [];
+  private readonly digits: Phaser.GameObjects.Image[] = [];
+  visibleEnemies = 0;
+  visibleBullets = 0;
+  private readonly turret: Phaser.GameObjects.Image;
+  readonly pitSign: Phaser.GameObjects.Image;
+  constructor(scene: Phaser.Scene, private readonly model: CombatSystem, private readonly projection: TrackProjection) {
+    for (let i = 0; i < model.enemies.capacity; i++) this.enemies.push(scene.add.image(0, 0, 'cone').setVisible(false));
+    for (let i = 0; i < model.bullets.capacity; i++) this.bullets.push(scene.add.image(0, 0, 'bullet').setVisible(false));
+    for (let i = 0; i < model.coins.capacity; i++) this.coins.push(scene.add.image(0, 0, 'coin').setVisible(false));
+    for (let i = 0; i < model.damage.capacity * 3; i++) this.digits.push(scene.add.image(0, 0, 'digit0').setVisible(false).setDepth(29));
+    this.turret = scene.add.image(0, 0, 'turret').setOrigin(0.5, 0.68);
+    this.pitSign = scene.add.image(0, 0, 'cafe').setVisible(false);
+  }
+  private place(image: Phaser.GameObjects.Image, x: number, z: number, scale: number): void {
+    const p = this.projection; p.project(z, x);
+    image.setVisible(p.x > -60 && p.x < 510 && p.y > 100 && p.y < p.viewHeight + 65)
+      .setPosition(p.x, p.y).setScale(p.scale * scale).setDepth(10 + p.y / 100 + 0.03);
+  }
+  draw(alpha: number): void {
+    const m = this.model;
+    this.visibleEnemies = this.visibleBullets = 0;
+    for (let i = 0; i < this.enemies.length; i++) {
+      const e = m.enemies.items[i], image = this.enemies[i];
+      if (!e.active) { image.setVisible(false); continue; }
+      const texture = e.flash > 0 ? HIT_TEXTURES[e.kind] : ENEMY_TEXTURES[e.kind]; if (image.texture.key !== texture) image.setTexture(texture);
+      this.place(image, e.px + (e.x - e.px) * alpha, e.pz + (e.z - e.pz) * alpha, 1);
+      if (image.visible) this.visibleEnemies++;
+      image.setRotation(e.kind === 1 ? Math.sign(e.vx) * 0.22 : e.kind === 2 ? (e.x - e.px) * 0.08 : 0);
+    }
+    for (let i = 0; i < this.bullets.length; i++) {
+      const b = m.bullets.items[i], image = this.bullets[i];
+      if (!b.active) { image.setVisible(false); continue; }
+      this.place(image, b.px + (b.x - b.px) * alpha, b.pz + (b.z - b.pz) * alpha, 1);
+      if (image.visible) this.visibleBullets++;
+      image.setRotation(Math.atan2(b.vx, b.vz));
+    }
+    for (let i = 0; i < this.coins.length; i++) {
+      const c = m.coins.items[i], image = this.coins[i];
+      if (!c.active) { image.setVisible(false); continue; }
+      this.place(image, c.px + (c.x - c.px) * alpha, c.pz + (c.z - c.pz) * alpha, 1);
+      image.scaleX *= 0.65 + Math.abs(Math.sin(c.life * 7)) * 0.35;
+    }
+    for (let i = 0; i < m.damage.capacity; i++) {
+      const d = m.damage.items[i];
+      this.projection.project(d.z, d.x);
+      const count = d.value >= 100 ? 3 : d.value >= 10 ? 2 : 1;
+      for (let j = 0; j < 3; j++) {
+        const image = this.digits[i * 3 + j];
+        if (!d.active || j >= count) { image.setVisible(false); continue; }
+        const digit = Math.floor(d.value / (10 ** (count - 1 - j))) % 10;
+        const texture = DIGITS[digit]; if (image.texture.key !== texture) image.setTexture(texture);
+        image.setVisible(this.projection.y > 100 && this.projection.y < this.projection.viewHeight + 40)
+          .setPosition(this.projection.x + (j - (count - 1) / 2) * 11, this.projection.y - 30 - (0.65 - d.life) * 55)
+          .setScale(1 + Math.sin(d.life / 0.65 * Math.PI) * 0.13).setAlpha(Math.min(1, d.life * 5));
+      }
+    }
+  }
+  drawTurret(p: DriftPhysics, alpha: number, kick: number): void {
+    const heading = p.previousHeading + (p.heading - p.previousHeading) * alpha;
+    const x = p.previousX + (p.x - p.previousX) * alpha - 225 - Math.sin(heading) * 24;
+    const z = p.previousProgress + (p.progress - p.previousProgress) * alpha - Math.cos(heading) * 24;
+    const projection = this.projection; projection.project(z, x);
+    const sx = projection.x, sy = projection.y, scale = projection.scale;
+    projection.project(z + this.model.aimZ * 45, x + this.model.aimX * 45);
+    const angle = Math.atan2(projection.x - sx, sy - projection.y);
+    this.turret.setPosition(sx, sy - 5 + kick).setRotation(angle).setScale(scale, scale * 0.85)
+      .setDepth(10 + sy / 100 + 0.05).setAlpha(this.model.muzzleFlash > 0 ? 0.7 : 1);
+  }
+  drawPit(progress: number, visible: boolean, time: number): void {
+    this.place(this.pitSign, 188, progress + 180, 1.1);
+    this.pitSign.setVisible(visible).setAlpha(0.75 + Math.sin(time * 8) * 0.25);
+  }
+}
+const DIGITS = ['digit0', 'digit1', 'digit2', 'digit3', 'digit4', 'digit5', 'digit6', 'digit7', 'digit8', 'digit9'];

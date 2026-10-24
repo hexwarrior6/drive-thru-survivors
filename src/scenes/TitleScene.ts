@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { updateSoundButton } from '../ui/UtilityControls';
 import { Player } from '../entities/Player';
 import { TrackGenerator } from '../systems/TrackGenerator';
 
@@ -19,11 +20,12 @@ export class TitleScene extends Phaser.Scene {
       this.scene.start('Game');
     }, { signal: this.abort.signal });
     const sound = document.getElementById('sound')!;
+    document.querySelector('.masthead')!.append(sound);
+    updateSoundButton(sound, this.registry.get('muted') === true);
     sound.addEventListener('click', () => {
       const muted = this.registry.get('muted') !== true;
       this.registry.set('muted', muted);
-      sound.innerHTML = muted ? '声音 OFF <span>♪</span>' : '声音 ON <span>♪</span>';
-      sound.setAttribute('aria-pressed', String(muted));
+      updateSoundButton(sound, muted);
     }, { signal: this.abort.signal });
     this.events.once('shutdown', () => this.abort?.abort());
   }

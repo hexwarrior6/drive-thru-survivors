@@ -51,7 +51,7 @@ export class MobileControls {
     this.state.steer = Number(this.keys.has('ArrowRight') || this.keys.has('KeyD') || this.hasPointer('right'))
       - Number(this.keys.has('ArrowLeft') || this.keys.has('KeyA') || this.hasPointer('left'));
     this.state.throttle = this.cruise.checked || this.keys.has('ArrowUp') || this.keys.has('KeyW');
-    this.state.brake = this.keys.has('ArrowDown') || this.keys.has('KeyS');
+    this.state.brake = this.keys.has('ArrowDown') || this.keys.has('KeyS') || this.hasPointer('brake');
     this.state.drift = this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') || this.hasPointer('drift');
     this.state.boost = this.boostQueued; this.boostQueued = false;
     return this.state;
