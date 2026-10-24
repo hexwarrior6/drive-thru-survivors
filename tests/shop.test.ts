@@ -12,7 +12,7 @@ import { FIXED_DT } from '../src/config';
 function setup() { const shop = new ShopSystem(demoSnapshot(), () => .5); shop.open(1); const combat = new CombatSystem({ explode() {} }); const physics = new DriftPhysics(); return {shop, combat, physics, weapons: new WeaponSystem(shop.slots, combat)}; }
 test('catalog maps all menu variants and uses exact catalog damage/levels', () => {
   const p = demoSnapshot().stores[0].products[0];
-  for (const [name,type] of [['巨无霸','burger'],['麦辣鸡腿堡','flame'],['中薯条','fries'],['麦乐鸡','mine'],['可口可乐','cola'],['柠檬红茶','ice'],['拿铁咖啡','coffee'],['浓缩咖啡','desperate'],['苹果派','heal'],['甜筒','shield']]) assert.equal(mapProductToWeapon({...p,name}),type);
+  for (const [name,type] of [['巨无霸','burger'],['麦辣鸡腿堡','missile'],['中薯条','fries'],['麦乐鸡','mine'],['可口可乐','cola'],['柠檬红茶','ice'],['拿铁咖啡','coffee'],['浓缩咖啡','desperate'],['苹果派','heal'],['甜筒','shield'],['开心乐园餐','wingman']]) assert.equal(mapProductToWeapon({...p,name}),type);
   assert.deepEqual(stats.burger.damage,[40,60,90]); assert.deepEqual(stats.fries.count,[5,7,9]); assert.deepEqual(stats.cola.range,[60,80,100]);
 });
 test('shop draws three menu products, deducts once, upgrades same name without consuming slots and caps Lv3', () => {

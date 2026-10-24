@@ -12,6 +12,9 @@ export class DriftPhysics {
   speedBonus = 0;
   chargeBonus = 0;
   nitroRegen = 0;
+  /** Kart passives, set once per run by the scene; weapons stack on top. */
+  carSpeedBonus = 0;
+  carNitroRegen = 0;
   progress = 0;
   previousProgress = 0;
   x = 225;

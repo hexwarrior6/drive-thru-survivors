@@ -1,8 +1,8 @@
-import { BASE_SPEED } from '../config';
+import { BASE_SPEED, WAVES_PER_RUN } from '../config';
 import { PIT_CAMERA_SIDE, PIT_ENTRY_SECONDS, PIT_EXIT_SECONDS, PIT_EXIT_DISTANCE, pitLaneCenter, smoothPit } from './PitStopLayout';
 import type { DriftPhysics } from './DriftPhysics';
 import type { CombatSystem } from '../combat/CombatSystem';
-export type WaveState = 'combat' | 'entering' | 'exiting' | 'pit' | 'disabled';
+export type WaveState = 'combat' | 'countdown' | 'entering' | 'exiting' | 'bossdown' | 'victory' | 'pit' | 'disabled';
 /** Fixed wave clock plus guided entry and departure along the service bay. */
 export class WaveSystem {
   number = 1;
@@ -10,6 +10,11 @@ export class WaveSystem {
   duration = 45;
   state: WaveState = 'combat';
   transition = 0;
+  /** Dev fast mode shortens every wave for end-to-end testing. */
+  fast = false;
+  intro = 0;
+  bossDownTime = 0;
+  private bossSpawned = false;
   private spawnTime = 0.4;
   private spawned = 0;
   private pursuitTime = 2.5;
@@ -21,13 +26,64 @@ export class WaveSystem {
   private entryDuration = PIT_ENTRY_SECONDS;
   private entryProgress = 0;
   private endProgress = 0;
+  get isBossWave(): boolean { return this.number >= WAVES_PER_RUN; }
+  /** Fresh runs open with a 3-2-1 launch; resumed runs skip straight to combat. */
+  beginCountdown(seconds = 3.2): void {
+    this.state = 'countdown'; this.intro = seconds;
+    this.duration = this.plannedDuration(); this.remaining = this.duration;
+    this.spawnTime = 0.4; this.pursuitTime = 2.5; this.spawned = 0; this.packs = 0;
+    this.bossSpawned = false; this.approachScheduled = false; this.pitProgress = NaN;
+  }
+  private plannedDuration(): number {
+    if (this.fast) return 8;
+    return Math.min(60, 45 + (this.number - 1) * 3);
+  }
+  /** Bullet-time window after the boss falls; the scene plays the celebration. */
+  bossDown(seconds = 2.4): void {
+    if (this.state !== 'combat' || !this.isBossWave) return;
+    this.state = 'bossdown'; this.bossDownTime = seconds;
+  }
   step(p: DriftPhysics, combat: CombatSystem, dt: number): void {
+    if (this.state === 'countdown') {
+      this.intro = Math.max(0, this.intro - dt);
+      if (this.intro === 0) this.state = 'combat';
+      return;
+    }
+    if (this.state === 'bossdown') {
+      this.bossDownTime = Math.max(0, this.bossDownTime - dt);
+      if (this.bossDownTime === 0) this.state = 'victory';
+      return;
+    }
+    if (this.state === 'victory') return;
     if (this.state === 'entering' || this.state === 'exiting') {
       if (this.state === 'entering') this.remaining = Math.max(0, this.remaining - dt);
       this.drivePit(p, dt, this.state === 'exiting'); return;
     }
     if (this.state !== 'combat') return;
     this.remaining = Math.max(0, this.remaining - dt);
+    if (this.isBossWave) {
+      // The tyrant wave has no clock: it ends when the truck falls.
+      if (!this.bossSpawned && this.duration - this.remaining > 1.2) {
+        this.bossSpawned = true;
+        combat.spawn(3, Math.max(-90, Math.min(90, p.x - 225)), p.progress + 430);
+      }
+      this.spawnTime -= dt;
+      if (this.spawnTime <= 0) {
+        this.spawnTime += 2.1;
+        const index = this.spawned++, kind = index % 4 === 3 ? 1 : 0;
+        const x = kind === 1 ? (Math.floor(index / 4) % 2 === 0 ? -138 : 138) : ((index * 2) % 3 - 1) * 96;
+        combat.spawn(kind, x, p.progress + 680);
+      }
+      this.pursuitTime -= dt;
+      if (this.pursuitTime <= 0) {
+        this.pursuitTime += 8.5;
+        const lane = (this.packs + 1) % 3;
+        combat.spawn(2, (lane - 1) * 96, p.progress - 180);
+        combat.spawn(2, (lane - 1) * 96 + 30, p.progress - 200);
+        this.packs++;
+      }
+      return;
+    }
     if (this.remaining <= 3 && !this.approachScheduled) {
       // Publish this location once. Braking, drifting or boosting must never move visible scenery.
       this.pitProgress = p.progress + Math.max(BASE_SPEED, p.speed) * this.remaining + 480;
@@ -42,7 +98,7 @@ export class WaveSystem {
       // rather than dragging the station back or racing the car forward in a fixed duration.
       this.entryDuration = Math.max(PIT_ENTRY_SECONDS,
         2 * (this.endProgress - this.entryProgress) / Math.max(BASE_SPEED, -p.vy), this.remaining);
-      this.transition = 0; combat.money += 10 + this.number * 2; combat.clear(); return;
+      this.transition = 0; combat.money += 8 + this.number; combat.clear(); return;
     }
     this.spawnTime -= dt;
     if (this.spawnTime <= 0) {
@@ -95,9 +151,12 @@ export class WaveSystem {
   }
   next(combat: CombatSystem, p: DriftPhysics): void {
     if (this.state !== 'pit') return;
-    this.number++; this.duration = Math.min(60, 45 + (this.number - 1) * 3);
+    this.number++; this.duration = this.plannedDuration();
+    // Every wave fields 12% tougher enemies; the fifth is the tyrant truck itself.
+    combat.hpScale = 1 + (this.number - 1) * 0.12;
     this.remaining = this.duration; this.state = 'exiting'; this.spawnTime = 0.4; this.pursuitTime = 2.5;
-    this.approachScheduled = false; this.transition = 0;
+    this.approachScheduled = false; this.transition = 0; this.bossSpawned = false;
+    // Keep the station we just left: the exit merge runs past its divider end.
     if (!Number.isFinite(this.pitProgress)) this.pitProgress = p.progress;
     this.entryX = p.x; this.entryProgress = p.progress; this.endProgress = p.progress + PIT_EXIT_DISTANCE;
     combat.clear();

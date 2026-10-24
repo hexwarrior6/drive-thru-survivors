@@ -11,8 +11,12 @@ export class ShopSystem {
   selected = -1;
   store!: Store;
   wave = 1;
-  private readonly route: Store[] = [];
-  private readonly bag: Store[] = [];
+  /** Store promotion derived from the snapshot's real coupon titles (game-side discount). */
+  discount = 1;
+  couponTitle = '';
+  /** Deterministic stop order; readable for run saves. */
+  readonly route: Store[] = [];
+  readonly bag: Store[] = [];
   constructor(readonly snapshot: Snapshot, private random = Math.random) {}
   destination(wave: number): Store {
     while (this.route.length < wave) {
@@ -35,8 +39,13 @@ export class ShopSystem {
     const products = [...this.store.products];
     for (let i = products.length - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [products[i], products[j]] = [products[j], products[i]]; }
     this.offers = products.sort((a,b) => discoveryScore(b) - discoveryScore(a)); this.sold.clear(); this.pending = this.selected = -1;
+    const coupon = this.snapshot.coupons[0];
+    if (coupon) { this.discount = 0.9; this.couponTitle = coupon.title; }
+    else { this.discount = 1; this.couponTitle = ''; }
   }
-  price(p: Product): number { return Math.max(1, Math.ceil(p.price / 100)); }
+  basePrice(p: Product): number { return Math.max(1, Math.ceil(p.price / 100)); }
+  price(p: Product): number { return Math.max(1, Math.ceil(this.basePrice(p) * this.discount)); }
+  repairCost(): number { return 10 + (this.wave - 1) * 2; }
   equipped(p: Product): EquippedWeapon | undefined { return this.slots.find(w => w?.name === p.name) ?? undefined; }
   buy(index: number, wallet: Wallet, replacement = -1): 'bought' | 'replace' | 'unavailable' {
     const p = this.offers[index];
@@ -54,7 +63,17 @@ export class ShopSystem {
     this.sold.add(index); this.pending = this.selected = -1; return 'bought';
   }
   repair(wallet: Wallet): boolean {
-    if (wallet.money < 10 || wallet.health >= 100) return false;
-    wallet.money -= 10; wallet.health = Math.min(100, wallet.health + 30); return true;
+    const cost = this.repairCost();
+    if (wallet.money < cost || wallet.health >= 100) return false;
+    wallet.money -= cost; wallet.health = Math.min(100, wallet.health + 30); return true;
+  }
+  /** Restore the deterministic stop order of a saved run. */
+  restore(route: Store[], bagIds: string[]): void {
+    this.route.length = 0; this.bag.length = 0;
+    for (const store of route) if (store) this.route.push(store);
+    for (const id of bagIds) {
+      const store = this.snapshot.stores.find(s => s.id === id);
+      if (store) this.bag.push(store);
+    }
   }
 }

@@ -19,6 +19,12 @@ export class ShopView {
     document.getElementById('shop-source')!.textContent = this.reason + (s.store.referenceTime ? ' · 预约菜单参考 ' + s.store.referenceTime : '');
     document.getElementById('pit-heading')!.textContent = s.store.name;
     document.getElementById('shop-address')!.textContent = s.store.address;
+    const coupon = document.getElementById('shop-coupon')!;
+    coupon.classList.toggle('hidden', s.discount >= 1);
+    if (s.discount < 1) coupon.textContent = `🎫 ${s.couponTitle} · 本站特惠 ${Math.round(s.discount * 10)} 折，划线价为原价`;
+    const campaign = document.getElementById('pit-campaign')!;
+    campaign.textContent = s.snapshot.campaign;
+    campaign.hidden = !s.snapshot.campaign;
     const cards = document.getElementById('shop-cards')!; cards.replaceChildren();
     const menu = document.getElementById('menu-products')!; menu.replaceChildren();
     s.offers.forEach((p, i) => {
@@ -32,9 +38,10 @@ export class ShopView {
       desc.innerHTML = weaponStats(type, next).map(s => `<span class="stat">${statIcon(s.icon)}${s.text}</span>`).join('');
       card.append(desc);
       const button = node('button', '') as HTMLButtonElement;
+      const discounted = s.discount < 1 && !s.sold.has(i) && same?.level !== 3;
       if (s.sold.has(i)) button.textContent = '已购入';
       else if (same?.level === 3) button.textContent = '已满阶';
-      else button.innerHTML = `<span>${same ? '升阶' : '购买'}</span><span class="price">${statIcon('coin', 11)}${s.price(p)}</span>`;
+      else button.innerHTML = `<span>${same ? '升阶' : '购买'}</span><span class="price">${discounted ? `<s>${s.basePrice(p)}</s>` : ''}${statIcon('coin', 11)}${s.price(p)}</span>`;
       button.disabled = s.sold.has(i) || same?.level === 3 || w.money < s.price(p);
       button.addEventListener('click', () => { s.buy(i, w); this.render(); this.changed(); }); card.append(button); if (i < 3) cards.append(card); else menu.append(card);
     });
@@ -56,7 +63,9 @@ export class ShopView {
     confirm.disabled = s.selected < 0;
     confirm.onclick = () => { s.buy(s.pending, w, s.selected); this.render(); this.changed(); };
     document.getElementById('cancel-replace')!.onclick = () => { s.pending = s.selected = -1; this.render(); };
-    const repair = document.getElementById('repair') as HTMLButtonElement; repair.disabled = w.money < 10 || w.health >= 100;
+    const cost = s.repairCost();
+    const repair = document.getElementById('repair') as HTMLButtonElement; repair.disabled = w.money < cost || w.health >= 100;
+    repair.textContent = `维修 +30 车况 · ${cost} 金币`;
     repair.onclick = () => { s.repair(w); this.render(); this.changed(); };
   }
 }

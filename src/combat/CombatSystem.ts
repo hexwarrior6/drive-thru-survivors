@@ -3,20 +3,28 @@ import type { DriftPhysics } from '../systems/DriftPhysics';
 import { ObjectPool } from '../utils/ObjectPool';
 
 export const ENEMY_HP = [24, 55, 80] as const;
-export const ENEMY_RADIUS = [16, 21, 18] as const;
+export const ENEMY_RADIUS = [16, 21, 18, 52] as const;
+export const BOSS_HP = 1050;
 export const WEAPON_RANGE = 360;
 export const SHOT_INTERVAL = 0.38;
 export const PELLET_DAMAGE = 12;
 export const PELLET_SPREAD = 0.24;
 export const MAGNET_RANGE = 80;
+/** Combo milestone rewards; index is the tier reached (1 per threshold crossing). */
+const COMBO_TIERS = [10, 20, 35, 50, 75] as const;
+const COMBO_BONUS = [0, 1, 2, 4, 6, 10] as const;
+/** Coin value per kind: cones 1, carts 2, riders 2, tyrant 4. Riders are the volume farm. */
+const COIN_VALUE = [1, 2, 2, 4] as const;
 const GRID_COLUMNS = 10, GRID_ROWS = 36, CELL = 80, GRID_MIN_X = -400;
 export interface Enemy {
   active: boolean; slot: number; kind: number; x: number; z: number; px: number; pz: number;
   hp: number; flash: number; contact: number; vx: number; vz: number; slow: number; slowTime: number; burn: number; burnDamage: number; frozen: boolean;
+  /** Boss state machine: 0 cruise, 1 telegraph, 2 slam dash, 3 recover. */
+  phase: number; timer: number; tx: number; throwCd: number;
 }
 export interface Bullet {
   active: boolean; slot: number; x: number; z: number; px: number; pz: number;
-  vx: number; vz: number; life: number; damage: number; kind: number; level: number; pierce: number; hitMask: Uint8Array;
+  vx: number; vz: number; life: number; damage: number; kind: number; level: number; pierce: number; targetSlot: number; hitMask: Uint8Array;
 }
 export interface Coin {
   active: boolean; slot: number; x: number; z: number; px: number; pz: number;
@@ -28,8 +36,8 @@ export interface Damage {
 export interface CombatEffects { explode(x: number, z: number, kind: number): void }
 /** Simulation owns no Phaser objects. Every slot, free list and grid cell is allocated at startup. */
 export class CombatSystem {
-  readonly enemies = new ObjectPool<Enemy>(128, slot => ({ active: false, slot, kind: 0, x: 0, z: 0, px: 0, pz: 0, hp: 0, flash: 0, contact: 0, vx: 0, vz: 0, slow: 1, slowTime: 0, burn: 0, burnDamage: 0, frozen: false }));
-  readonly bullets = new ObjectPool<Bullet>(256, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, damage: PELLET_DAMAGE, kind: 0, level: 1, pierce: 1, hitMask: new Uint8Array(128) }));
+  readonly enemies = new ObjectPool<Enemy>(128, slot => ({ active: false, slot, kind: 0, x: 0, z: 0, px: 0, pz: 0, hp: 0, flash: 0, contact: 0, vx: 0, vz: 0, slow: 1, slowTime: 0, burn: 0, burnDamage: 0, frozen: false, phase: 0, timer: 0, tx: 0, throwCd: 0 }));
+  readonly bullets = new ObjectPool<Bullet>(256, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, damage: PELLET_DAMAGE, kind: 0, level: 1, pierce: 1, targetSlot: -1, hitMask: new Uint8Array(128) }));
   readonly coins = new ObjectPool<Coin>(128, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, value: 0, magnet: false }));
   readonly damage = new ObjectPool<Damage>(64, slot => ({ active: false, slot, x: 0, z: 0, life: 0, value: 0 }));
   private readonly heads = new Int32Array(GRID_COLUMNS * GRID_ROWS);
@@ -37,11 +45,28 @@ export class CombatSystem {
   private gridZ = 0;
   private cooldown = 0;
   private invincible = 0;
+  private time = 0;
   starterEnabled = true;
   shields = 0;
   shieldLevel = 0;
   damageMultiplier = 1;
   magnetRange = MAGNET_RANGE;
+  baseMagnetRange = MAGNET_RANGE;
+  /** Difficulty scaling and run modifiers, set by the scene from car + theme + wave. */
+  hpScale = 1;
+  bossHpScale = 1;
+  coinMultiplier = 1;
+  ramSlow = 0;
+  private coinCarry = 0;
+  combo = 0;
+  comboTimer = 0;
+  maxCombo = 0;
+  comboTier = 0;
+  bossSlot = -1;
+  bossMaxHp = 0;
+  bossDefeated = false;
+  bossX = 0;
+  bossZ = 0;
   health = 100;
   money = 0;
   kills = 0;
@@ -62,15 +87,17 @@ export class CombatSystem {
     const e = this.enemies.acquire(); if (!e) return null;
     e.kind = kind; e.x = e.px = x; e.z = e.pz = z;
     e.slow = 1; e.slowTime = e.burn = e.burnDamage = 0; e.frozen = false;
-    e.hp = ENEMY_HP[kind]; e.flash = e.contact = 0;
+    e.hp = kind === 3 ? Math.round(BOSS_HP * this.bossHpScale) : Math.round(ENEMY_HP[kind] * this.hpScale);
+    e.flash = e.contact = 0; e.phase = 0; e.timer = 0; e.tx = 0; e.throwCd = 2.4;
     e.vx = kind === 1 ? (x < 0 ? 95 : -95) : 0;
     e.vz = kind === 2 ? BASE_SPEED * 1.16 : 0;
+    if (kind === 3) { this.bossSlot = e.slot; this.bossMaxHp = e.hp; }
     return e;
   }
   nearest(x: number, z: number): Enemy | null {
     let target: Enemy | null = null, distance = WEAPON_RANGE * WEAPON_RANGE;
     for (let i = 0; i < this.enemies.capacity; i++) {
-      const e = this.enemies.items[i]; if (!e.active || e.kind !== 2) continue;
+      const e = this.enemies.items[i]; if (!e.active || (e.kind !== 2 && e.kind !== 3)) continue;
       const dx = e.x - x, dz = e.z - z, d = dx * dx + dz * dz;
       if (d <= distance) { target = e; distance = d; }
     }
@@ -86,28 +113,56 @@ export class CombatSystem {
     const d = this.damage.acquire();
     if (d) { d.x = e.x; d.z = e.z; d.life = 0.65; d.value = Math.min(999, Math.max(1, Math.round(amount))); }
     if (e.hp > 0) return;
-    this.enemies.release(e); this.kills++;
+    if (e.kind === 3) { this.bossDefeated = true; this.bossX = e.x; this.bossZ = e.z; this.bossSlot = -1; }
+    this.enemies.release(e); this.kills++; this.bumpCombo(e.x, e.z);
     this.effects.explode(e.x, e.z, e.kind);
     const coin = this.coins.acquire();
     if (coin) {
       coin.x = coin.px = e.x; coin.z = coin.pz = e.z;
       coin.vx = (Math.random() - 0.5) * 95; coin.vz = -35;
-      coin.life = 8; coin.value = e.kind + 1;
+      coin.life = 8; coin.value = COIN_VALUE[e.kind];
       // Pursuit rewards return automatically: the player cannot drive backwards to collect them.
-      // Road drops still require entering the standard 80px pickup radius.
-      coin.magnet = e.kind === 2;
+      // Road drops still require entering the standard magnet radius.
+      coin.magnet = e.kind !== 0;
     } else {
       // Full pickup pool merges value into an existing drop; no lost currency or allocation.
-      const existing = this.coins.items[this.kills % this.coins.capacity]; existing.value += e.kind + 1;
+      const existing = this.coins.items[this.kills % this.coins.capacity]; existing.value += COIN_VALUE[e.kind];
     }
   }
-  private cellX(x: number): number { return Math.max(0, Math.min(GRID_COLUMNS - 1, Math.floor((x - GRID_MIN_X) / CELL))); }
+  /** Kill streak with timed decay and milestone coin bonuses. */
+  private bumpCombo(x: number, z: number): void {
+    this.combo++; this.comboTimer = 3.5;
+    if (this.combo > this.maxCombo) this.maxCombo = this.combo;
+    let tier = 0;
+    for (let i = 0; i < COMBO_TIERS.length; i++) if (this.combo >= COMBO_TIERS[i]) tier = i + 1;
+    if (tier > this.comboTier) {
+      this.comboTier = tier;
+      const bonus = COMBO_BONUS[tier];
+      this.money += bonus;
+      const d = this.damage.acquire();
+      if (d) { d.x = x; d.z = z - 24; d.life = 0.8; d.value = Math.min(999, bonus); }
+    }
+  }
+  /** Celebration drop: coins scatter around the fallen boss and stream into the car. */
+  burstCoins(x: number, z: number, count: number, total: number): void {
+    const per = Math.max(1, Math.floor(total / count));
+    for (let i = 0; i < count; i++) {
+      const coin = this.coins.acquire(); if (!coin) break;
+      const angle = (i / count) * Math.PI * 2;
+      coin.x = coin.px = x; coin.z = coin.pz = z;
+      coin.vx = Math.cos(angle) * 150; coin.vz = Math.sin(angle) * 90;
+      coin.life = 9; coin.value = per; coin.magnet = true;
+    }
+  }  private cellX(x: number): number { return Math.max(0, Math.min(GRID_COLUMNS - 1, Math.floor((x - GRID_MIN_X) / CELL))); }
   private cellZ(z: number): number { return Math.max(0, Math.min(GRID_ROWS - 1, Math.floor((z - this.gridZ) / CELL))); }
   step(p: DriftPhysics, dt: number): void {
+    this.time += dt;
     this.muzzleFlash = Math.max(0, this.muzzleFlash - dt);
     this.impact = 0; this.invincible = Math.max(0, this.invincible - dt);
     this.gridZ = p.progress - 500; this.heads.fill(-1);
     const carX = p.x - 225; this.pursuers = 0;
+    this.comboTimer = Math.max(0, this.comboTimer - dt);
+    if (this.comboTimer === 0) { this.combo = 0; this.comboTier = 0; }
     for (let i = 0; i < this.damage.capacity; i++) {
       const d = this.damage.items[i]; if (d.active && (d.life -= dt) <= 0) this.damage.release(d);
     }
@@ -125,22 +180,59 @@ export class CombatSystem {
         e.vx += (Math.max(-70, Math.min(70, (carX - e.x) * 1.3)) - e.vx) * Math.min(1, dt * 3);
         e.x += e.vx * dt * e.slow; e.z += e.vz * dt * e.slow;
       }
-      if (e.z < p.progress - 450 || e.z > p.progress + 2000) { this.enemies.release(e); continue; }
+      if (e.kind === 3) {
+        // Tyrant truck: drifts ahead, telegraphs a lane-slam, and drops barriers.
+        e.timer -= dt; e.throwCd -= dt;
+        const relative = e.z - p.progress;
+        if (e.phase === 0) {
+          e.vx += (Math.sin(this.time * 0.7) * 120 - e.vx) * Math.min(1, dt * 1.6);
+          if (e.timer <= 0) { e.phase = 1; e.timer = 0.9; e.tx = carX; }
+        } else if (e.phase === 1) {
+          e.flash = 0.09; e.vx *= Math.pow(0.01, dt);
+          if (e.timer <= 0) { e.phase = 2; e.timer = 0.5; e.vx = Math.max(-640, Math.min(640, (e.tx - e.x) / 0.5)); }
+        } else if (e.phase === 2) {
+          if (e.timer <= 0) { e.phase = 3; e.timer = 1.5; }
+        } else {
+          e.vx *= Math.pow(0.05, dt);
+          if (e.timer <= 0) { e.phase = 0; e.timer = 3.2 + Math.random() * 1.4; }
+        }
+        // Hover ahead of the car at an absolute pace; a slow correction keeps the
+        // truck on screen and the emergency chase means it can never fall behind.
+        const hover = e.phase === 0 ? 2.5 : 1.2;
+        const pace = Math.max(0, -p.vy);
+        const correction = Math.max(-70, Math.min(90, (260 - relative) * 0.8));
+        e.vz += (pace * 1.02 + correction - e.vz) * Math.min(1, dt * hover);
+        if (relative < 60) e.vz = Math.max(e.vz, pace * 1.35);
+        // Chilled truck slides at half effectiveness; it is never fully frozen.
+        const glide = e.slow < 1 ? 0.55 : 1;
+        e.x += e.vx * dt * glide; e.z += e.vz * dt;
+        if (e.throwCd <= 0) {
+          e.throwCd = 4.6;
+          this.spawn(0, Math.max(-138, Math.min(138, carX)), p.progress + 560);
+        }
+      }
+      if (e.z < p.progress - 450 || e.z > p.progress + 2000) {
+        if (e.kind === 3) { this.bossSlot = -1; }
+        this.enemies.release(e); continue;
+      }
       // Car OBB versus enemy circle, including both front and trailing contacts.
       const dx = e.x - carX, dz = e.z - p.progress;
-      if (Math.abs(dx) < 90 && Math.abs(dz) < 90 && e.contact === 0) {
+      if (Math.abs(dx) < 100 && Math.abs(dz) < 100 && e.contact === 0) {
         const cos = Math.cos(p.heading), sin = Math.sin(p.heading);
         const side = dx * cos - dz * sin, forward = dx * sin + dz * cos;
         const cx = Math.max(Math.abs(side) - 24, 0), cz = Math.max(Math.abs(forward) - 34, 0);
         if (cx * cx + cz * cz <= ENEMY_RADIUS[e.kind] ** 2) {
           e.contact = 0.5; this.lastRamDamage = CombatSystem.ramDamage(p);
           const frozen = e.frozen && e.slow === 0;
-          this.hit(e, this.lastRamDamage * (e.frozen ? 2 : 1));
+          this.hit(e, this.lastRamDamage * (frozen ? 2 : 1));
           if (frozen && !e.active) this.iceBurst(e); this.impact = 1;
           if (this.invincible === 0 && p.pulseTime === 0 && p.nitroTime === 0) {
-            this.hurt(e.kind === 0 ? 5 : 9, e);
+            this.hurt(e.kind === 0 ? 5 : e.kind === 3 ? 14 : 9, e);
           }
-          if (e.active) { e.z += dz >= 0 ? 48 : -48; e.x += dx >= 0 ? 15 : -15; }
+          if (e.active) {
+            e.z += dz >= 0 ? 48 : -48; e.x += dx >= 0 ? 15 : -15;
+            if (this.ramSlow > 0 && e.kind !== 3) { e.slow = Math.min(e.slow, 1 - this.ramSlow); e.slowTime = 2; }
+          }
         }
       }
       if (!e.active) continue;
@@ -169,7 +261,7 @@ export class CombatSystem {
           const vx = this.aimX * cos - this.aimZ * sin, vz = this.aimX * sin + this.aimZ * cos;
           b.x = b.px = originX + vx * 22; b.z = b.pz = originZ + vz * 22;
           b.vx = vx * speed; b.vz = vz * speed;
-          b.life = 1.2; b.damage = PELLET_DAMAGE; b.kind = 0; b.level = 1; b.pierce = 1; b.hitMask.fill(0); this.pelletsFired++; fired = true;
+          b.life = 1.2; b.damage = PELLET_DAMAGE; b.kind = 0; b.level = 1; b.pierce = 1; b.targetSlot = -1; b.hitMask.fill(0); this.pelletsFired++; fired = true;
         }
         if (fired) { this.shots++; this.muzzleFlash = 0.08; }
         this.cooldown = SHOT_INTERVAL;
@@ -178,6 +270,20 @@ export class CombatSystem {
 
     for (let i = 0; i < this.bullets.capacity; i++) {
       const b = this.bullets.items[i]; if (!b.active) continue;
+      if (b.kind === 4) {
+        // Guided missiles steer toward their locked slot with a bounded turn rate.
+        const locked = b.targetSlot >= 0 ? this.enemies.items[b.targetSlot] : null;
+        if (locked && locked.active) {
+          const wanted = Math.atan2(locked.x - b.x, locked.z - b.z);
+          const current = Math.atan2(b.vx, b.vz);
+          let diff = wanted - current;
+          if (diff > Math.PI) diff -= Math.PI * 2; else if (diff < -Math.PI) diff += Math.PI * 2;
+          const turn = Math.max(-4.4 * dt, Math.min(4.4 * dt, diff));
+          const speed = Math.hypot(b.vx, b.vz);
+          const angle = current + turn;
+          b.vx = Math.sin(angle) * speed; b.vz = Math.cos(angle) * speed;
+        }
+      }
       b.px = b.x; b.pz = b.z; b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt;
       const minX = this.cellX(Math.min(b.x, b.px) - 26), maxX = this.cellX(Math.max(b.x, b.px) + 26);
       const minZ = this.cellZ(Math.min(b.z, b.pz) - 26), maxZ = this.cellZ(Math.max(b.z, b.pz) + 26);
@@ -206,11 +312,15 @@ export class CombatSystem {
       const c = this.coins.items[i]; if (!c.active) continue;
       c.px = c.x; c.pz = c.z; c.life -= dt;
       const dx = carX - c.x, dz = p.progress - c.z, distance = Math.hypot(dx, dz * 0.85);
-      // 80 logical pixels at the car plane, matching the road's vertical compression.
+      // Magnet radius at the car plane, matching the road's vertical compression.
       if (distance <= this.magnetRange) c.magnet = true;
       if (c.magnet) {
         const ease = 1 - Math.exp(-14 * dt); c.x += dx * ease + p.vx * dt; c.z += dz * ease + Math.max(0, -p.vy) * dt;
-        if (distance < 24) { this.money += c.value; this.coins.release(c); continue; }
+        if (distance < 24) {
+          this.coinCarry += c.value * this.coinMultiplier;
+          const gain = Math.floor(this.coinCarry); this.coinCarry -= gain; this.money += gain;
+          this.coins.release(c); continue;
+        }
       } else {
         c.x += c.vx * dt; c.z += c.vz * dt; c.vx *= 0.92; c.vz *= 0.92;
       }
@@ -225,6 +335,7 @@ export class CombatSystem {
     }
   }
   private hurt(amount: number, enemy?: Enemy): void {
+    if (this.combo > 1) { this.combo = this.combo >> 1; this.comboTier = 0; this.comboTimer = 1.5; }
     if (this.shields > 0) {
       this.shields--;
       if (enemy && this.shieldLevel > 1 && enemy.active) this.hit(enemy, this.lastRamDamage);
@@ -236,7 +347,11 @@ export class CombatSystem {
     else this.health = Math.max(0, this.health - amount * this.damageMultiplier);
     this.invincible = 0.5;
   }
-  clear(): void { this.enemies.clear(); this.bullets.clear(); this.coins.clear(); this.damage.clear(); this.cooldown = this.muzzleFlash = 0; this.targetSlot = -1; this.targetDistance = this.pursuers = 0; this.aimX = 0; this.aimZ = -1; }
+  clear(): void {
+    this.enemies.clear(); this.bullets.clear(); this.coins.clear(); this.damage.clear();
+    this.cooldown = this.muzzleFlash = 0; this.targetSlot = -1; this.targetDistance = this.pursuers = 0; this.aimX = 0; this.aimZ = -1;
+    this.combo = this.comboTimer = this.comboTier = 0; this.bossSlot = -1; this.bossMaxHp = 0;
+  }
 }
 
 /** Positive interception root, bounded to the projectile lifetime. */

@@ -69,6 +69,30 @@ export class BootScene extends Phaser.Scene {
     g.fillStyle(0x3c717a); g.fillRoundedRect(12, 8, 16, 6, 3);
     g.lineStyle(3, C.border); g.lineBetween(1, 20, 39, 20);
     g.generateTexture('rider', 40, 56); g.clear();
+    // Tyrant truck seen from behind: a wide box rig with golden arches and brake lights.
+    g.fillStyle(0x354e3c, 0.18); g.fillEllipse(80, 104, 140, 18);
+    g.fillStyle(C.border); g.fillRoundedRect(6, 6, 148, 84, 10);
+    g.fillStyle(0xb9702e); g.fillRoundedRect(11, 11, 138, 70, 8);
+    g.fillStyle(0xd98d44); g.fillRoundedRect(17, 17, 126, 44, 6);
+    g.lineStyle(4, C.gold); g.beginPath(); g.moveTo(48, 52);
+    g.lineTo(52, 30); g.lineTo(60, 26); g.lineTo(68, 52); g.lineTo(76, 26); g.lineTo(84, 30); g.lineTo(88, 52); g.strokePath();
+    g.fillStyle(0x3c717a); g.fillRect(24, 21, 22, 12);
+    g.fillStyle(C.panel); g.fillRect(30, 23, 10, 8);
+    g.fillStyle(0xad3945); g.fillRoundedRect(14, 66, 26, 12, 3); g.fillRoundedRect(120, 66, 26, 12, 3);
+    g.fillStyle(0xff7a5c); g.fillRect(18, 69, 18, 6); g.fillRect(124, 69, 18, 6);
+    g.fillStyle(0x293e37);
+    g.fillRoundedRect(18, 88, 26, 14, 4); g.fillRoundedRect(64, 88, 32, 14, 4); g.fillRoundedRect(116, 88, 26, 14, 4);
+    g.generateTexture('truck', 160, 110); g.clear();
+    g.fillStyle(0xffcf52); g.fillRoundedRect(1, 1, 8, 9, 2);
+    g.fillStyle(C.border); g.fillRect(3, 8, 2, 2);
+    g.generateTexture('toy-bullet', 10, 11); g.clear();
+    g.fillStyle(0xad3945); g.fillRoundedRect(2, 0, 8, 16, 3);
+    g.fillStyle(0xfff2cb); g.fillRoundedRect(2, 3, 8, 4, 2);
+    g.fillStyle(C.border); g.fillTriangle(2, 16, 6, 11, 10, 16); g.fillTriangle(0, 20, 4, 15, 8, 20);
+    g.generateTexture('missile-bullet', 12, 22); g.clear();
+    g.fillStyle(0xad3945); g.fillTriangle(10, 0, 2, 12, 18, 12);
+    g.fillStyle(0xfff2cb); g.fillCircle(10, 6, 3.4);
+    g.generateTexture('hat', 20, 14); g.clear();
     g.fillStyle(C.orange); g.fillRoundedRect(0, 0, 10, 22, 5);
     g.fillStyle(C.panel); g.fillRoundedRect(3, 2, 4, 14, 2);
     g.generateTexture('bullet', 10, 22); g.clear();
@@ -88,7 +112,7 @@ export class BootScene extends Phaser.Scene {
       texture.context.drawImage(digit.canvas, 0, 0); texture.refresh();
     }
     digit.destroy();
-    for (const key of ['cone', 'cart', 'rider']) {
+    for (const key of ['cone', 'cart', 'rider', 'truck']) {
       const source = this.textures.get(key).getSourceImage() as HTMLCanvasElement;
       const hit = this.textures.createCanvas(key + '-hit', source.width, source.height)!;
       hit.context.drawImage(source, 0, 0); hit.context.globalCompositeOperation = 'source-in';

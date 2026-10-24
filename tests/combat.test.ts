@@ -74,7 +74,7 @@ test('rear fire kills a chasing rider and returns its distant reward without rev
   assert.equal(c.kills, 1); assert.ok(c.shots >= 5); assert.equal(c.health, 100);
   assert.ok(c.coins.items.some(coin => coin.active && coin.magnet));
   for (let i = 0; i < 120 && c.money === 0; i++) { p.progress += 340 * FIXED_DT; c.step(p, FIXED_DT); }
-  assert.equal(c.money, 3); assert.equal(cone.hp, 24);
+  assert.equal(c.money, 2); assert.equal(cone.hp, 24);
 });
 test('rider lateral inertia permits dodging and a real nitro burst opens a gap', () => {
   const c = new CombatSystem(silent), p = new DriftPhysics();
@@ -153,13 +153,13 @@ test('45-second wave freezes combat, eases into pit, grants reward once, next wa
   const c = new CombatSystem(silent), w = new WaveSystem(), p = new DriftPhysics(); p.speed = BASE_SPEED;
   for (let i = 0; i < 2699; i++) w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'combat'); w.step(p, c, FIXED_DT);
-  assert.equal(w.state, 'entering'); assert.equal(c.enemies.activeCount, 0); assert.equal(c.money, 12);
+  assert.equal(w.state, 'entering'); assert.equal(c.enemies.activeCount, 0); assert.equal(c.money, 9);
   const start = p.progress;
   const approachSeconds = Math.max(PIT_ENTRY_SECONDS, 2 * (w.pitProgress - start) / BASE_SPEED);
   for (let i = 0; i < Math.ceil(approachSeconds / FIXED_DT) + 2; i++) w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'pit'); assert.equal(p.x, PIT_PLAYER_X); assert.equal(p.speed, 0); assert.ok(p.progress > start);
   for (let i = 0; i < 90; i++) w.step(p, c, FIXED_DT);
-  assert.equal(c.money, 12); w.next(c, p); assert.equal(w.remaining, 48);
+  assert.equal(c.money, 9); w.next(c, p); assert.equal(w.remaining, 48);
   w.number = 10; w.state = 'pit'; w.next(c, p); assert.equal(w.remaining, 60);
 });
 test('combat hot paths contain no object construction, literals or closure allocation', () => {

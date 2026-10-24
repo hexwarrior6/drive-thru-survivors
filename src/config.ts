@@ -9,3 +9,5 @@ export const FONT = 'system-ui, -apple-system, sans-serif';
 /** Playable view ratio (height/width) floats between these bounds; outside them the canvas letterboxes. */
 export const MIN_VIEW_RATIO = 1.7;
 export const MAX_VIEW_RATIO = 2.25;
+/** A standard run is five waves; wave five is the double-lane tyrant truck. */
+export const WAVES_PER_RUN = 5;

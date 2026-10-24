@@ -1,4 +1,5 @@
 import { stats } from './weaponMapper';
+import { interceptTime } from './CombatSystem';
 import type { CombatSystem, Enemy } from './CombatSystem';
 import type { DriftPhysics } from '../systems/DriftPhysics';
 import type { EquippedWeapon } from '../systems/ShopSystem';
@@ -7,6 +8,17 @@ interface Mine { active: boolean; slot: number; x: number; z: number; life: numb
 /** Weapons share fixed entity pools; all cooldowns stop with the race simulation. */
 export class WeaponSystem {
   readonly mines = new ObjectPool<Mine>(32, slot => ({ active: false, slot, x: 0, z: 0, life: 0, level: 1, exploded: false }));
+  /** Happy-meal escort toys and shield orbit cones, two of each at most. */
+  readonly toyX = new Float64Array(2);
+  readonly toyZ = new Float64Array(2);
+  readonly orbX = new Float64Array(2);
+  readonly orbZ = new Float64Array(2);
+  toyCount = 0;
+  orbCount = 0;
+  private toyReady = new Uint8Array(2);
+  private toyCd = 0;
+  private orbAngle = 0;
+  private orbCd = 0;
   private healTime = 0;
   private shieldTime = 0;
   private lastKills = 0;
@@ -15,34 +27,40 @@ export class WeaponSystem {
   configure(p: DriftPhysics): void {
     let coffee = 0, desperate = 0;
     p.speedBonus = p.chargeBonus = p.nitroRegen = 0;
-    this.combat.starterEnabled = false; this.combat.damageMultiplier = 1; this.combat.magnetRange = 80;
+    this.combat.starterEnabled = false; this.combat.damageMultiplier = 1;
+    this.combat.magnetRange = this.combat.baseMagnetRange;
     for (let i = 0; i < 6; i++) {
       const w = this.slots[i]; if (!w) continue;
       const l = w.level;
       if (w.type === 'starter') this.combat.starterEnabled = true;
       if (w.type === 'coffee') { coffee = Math.max(coffee, l * .05); p.chargeBonus = l === 3 ? .3 : l === 2 ? .2 : 0; p.nitroRegen = l === 3 ? 1 : 0; }
       if (w.type === 'desperate' && this.combat.health < 20 + l * 10) { desperate = Math.max(desperate, .05 + l * .05); this.combat.damageMultiplier = 1.2 - l * .05; }
-      if (w.type === 'heal' && l === 3) this.combat.magnetRange = 110;
+      if (w.type === 'heal' && l === 3) this.combat.magnetRange = Math.max(this.combat.magnetRange, 110);
     }
-    p.speedBonus = Math.min(.25, coffee + desperate);
+    p.speedBonus = Math.min(.25, coffee + desperate) + p.carSpeedBonus;
+    p.nitroRegen += p.carNitroRegen;
   }
-  private nearest(p: DriftPhysics, range: number): Enemy | null {
+  private nearestTo(px: number, pz: number, range: number): Enemy | null {
     let target: Enemy | null = null, best = range * range;
     for (let i = 0; i < this.combat.enemies.capacity; i++) {
-      const e = this.combat.enemies.items[i]; if (!e.active || e.z <= p.progress) continue;
-      const dx = e.x - p.x + 225, dz = e.z - p.progress, d = dx * dx + dz * dz;
+      const e = this.combat.enemies.items[i]; if (!e.active || e.z <= pz) continue;
+      const dx = e.x - px, dz = e.z - pz, d = dx * dx + dz * dz;
       if (d < best) { target = e; best = d; }
     }
     return target;
   }
+  private nearest(p: DriftPhysics, range: number): Enemy | null {
+    return this.nearestTo(p.x - 225, p.progress, range);
+  }
   step(p: DriftPhysics, dt: number): void {
-    let heal = 0, shield = 0;
+    let heal = 0, shield = 0, wing = 0;
     const c = this.combat, x = p.x - 225;
     for (let i = 0; i < 6; i++) {
       const w = this.slots[i]; if (!w) continue;
       const l = w.level - 1;
       if (w.type === 'heal') { heal = Math.max(heal, w.level); continue; }
       if (w.type === 'shield') { shield = Math.max(shield, w.level); continue; }
+      if (w.type === 'wingman') { wing = Math.max(wing, w.level); continue; }
       if (w.type === 'starter' || w.type === 'coffee' || w.type === 'desperate') continue;
       w.cooldown = Math.max(0, w.cooldown - dt); if (w.cooldown > 0) continue;
       const s = stats[w.type], range = s.range[l];
@@ -56,7 +74,19 @@ export class WeaponSystem {
           b.x = b.px = x; b.z = b.pz = p.progress + 30;
           b.vx = Math.sin(a) * 900; b.vz = Math.cos(a) * 900 + p.speed * .3;
           b.damage = s.damage[l]; b.life = range / 900; b.kind = w.type === 'burger' ? 1 : 2;
-          b.level = w.level; b.pierce = w.type === 'burger' ? w.level : w.level === 3 ? 2 : 1; b.hitMask.fill(0);
+          b.level = w.level; b.pierce = w.type === 'burger' ? w.level : w.level === 3 ? 2 : 1; b.targetSlot = -1; b.hitMask.fill(0);
+          c.shots++;
+        }
+      } else if (w.type === 'missile') {
+        const target = this.nearest(p, range); if (!target) continue;
+        const count = s.count[l];
+        for (let j = 0; j < count; j++) {
+          const b = c.bullets.acquire(); if (!b) break;
+          const a = count === 2 ? (j === 0 ? -.14 : .14) : 0;
+          b.x = b.px = x; b.z = b.pz = p.progress + 26;
+          b.vx = Math.sin(a) * 760; b.vz = Math.cos(a) * 760 + p.speed * .3;
+          b.damage = s.damage[l]; b.life = 2.6; b.kind = 4;
+          b.level = w.level; b.pierce = 1; b.targetSlot = target.slot; b.hitMask.fill(0);
           c.shots++;
         }
       } else if (w.type === 'mine') {
@@ -71,7 +101,13 @@ export class WeaponSystem {
           const dx = e.x - x, dz = e.z - p.progress, d = Math.hypot(dx, dz);
           if (d > range || (w.type === 'ice' && e !== target) || (w.type === 'flame' && (dz >= 0 || Math.abs(Math.atan2(dx, -dz)) > (w.level === 3 ? 80 : 60) * Math.PI / 180))) continue;
           c.hit(e, s.damage[l]);
-          if (w.type === 'ice') { e.slow = w.level === 3 ? 0 : w.level === 2 ? .3 : .5; e.slowTime = w.level === 3 ? 2 : 3; e.frozen = w.level > 1; }
+          if (w.type === 'ice') {
+            // The tyrant truck shrugs off half the chill and can never be frozen solid.
+            const strength = w.level === 3 ? 0 : w.level === 2 ? .3 : .5;
+            e.slow = Math.min(e.slow, e.kind === 3 ? 1 - (1 - strength) * .5 : strength);
+            e.slowTime = w.level === 3 ? 2 : 3;
+            e.frozen = w.level > 1 && e.kind !== 3;
+          }
           if (w.type === 'flame' && w.level > 1) { e.burn = w.level === 3 ? 3 : 2; e.burnDamage = s.damage[l]; }
           if (w.type === 'cola') {
             e.x += dx / Math.max(1,d) * (6 + l * 5); e.z += dz / Math.max(1,d) * (6 + l * 5); e.slow = .7; e.slowTime = .5;
@@ -87,6 +123,63 @@ export class WeaponSystem {
       }
       w.cooldown = s.interval[l];
     }
+    // Escort toys trail the flanks and snipe whatever the turret ignores.
+    if (wing) {
+      const s = stats.wingman, l = wing - 1, want = s.count[l];
+      this.toyCount = want;
+      for (let i = 0; i < want; i++) {
+        const side = i === 0 ? -54 : 54;
+        const tx = x + side, tz = p.progress + 8;
+        if (this.toyReady[i] === 0) { this.toyX[i] = tx; this.toyZ[i] = tz; this.toyReady[i] = 1; }
+        else {
+          const ease = 1 - Math.exp(-6 * dt);
+          this.toyX[i] += (tx - this.toyX[i]) * ease; this.toyZ[i] += (tz - this.toyZ[i]) * ease;
+        }
+      }
+      this.toyCd -= dt;
+      if (this.toyCd <= 0) {
+        let fired = false;
+        const speed = 760 + p.speed * .2;
+        for (let i = 0; i < want; i++) {
+          const target = this.nearestTo(this.toyX[i], this.toyZ[i], s.range[l]);
+          if (!target) continue;
+          const dx = target.x - this.toyX[i], dz = target.z - this.toyZ[i];
+          const lead = interceptTime(dx, dz, target.vx, target.vz, speed);
+          const ax = dx + target.vx * lead, az = dz + target.vz * lead;
+          const length = Math.max(1, Math.hypot(ax, az));
+          const b = c.bullets.acquire(); if (!b) break;
+          b.x = b.px = this.toyX[i]; b.z = b.pz = this.toyZ[i];
+          b.vx = ax / length * speed; b.vz = az / length * speed;
+          b.life = s.range[l] / speed; b.damage = s.damage[l]; b.kind = 3;
+          b.level = 1; b.pierce = 1; b.targetSlot = -1; b.hitMask.fill(0);
+          c.shots++; fired = true;
+        }
+        this.toyCd = fired ? s.interval[l] : 0.2;
+      }
+    } else this.toyCount = 0;
+    // Sweet-cone orbit: higher shield tiers grind down anything that closes in.
+    if (shield > 1) {
+      this.orbCount = shield - 1;
+      this.orbAngle += dt * (2.4 + (shield - 1) * .5);
+      this.orbCd = Math.max(0, this.orbCd - dt);
+      const damage = 10 + (shield - 1) * 6;
+      for (let i = 0; i < this.orbCount; i++) {
+        const angle = this.orbAngle + i * Math.PI;
+        const ox = x + Math.cos(angle) * 52, oz = p.progress + Math.sin(angle) * 40;
+        this.orbX[i] = ox; this.orbZ[i] = oz;
+        if (this.orbCd > 0) continue;
+        for (let j = 0; j < c.enemies.capacity; j++) {
+          const e = c.enemies.items[j]; if (!e.active) continue;
+          const dx = e.x - ox, dz = e.z - oz;
+          if (dx * dx + dz * dz < 900) {
+            c.hit(e, damage);
+            if (e.active) e.x += dx >= 0 ? 9 : -9;
+            this.orbCd = .22;
+            break;
+          }
+        }
+      }
+    } else this.orbCount = 0;
     for (let i = 0; i < this.mines.capacity; i++) {
       const m = this.mines.items[i]; if (!m.active) continue;
       m.life -= dt;
@@ -117,5 +210,9 @@ export class WeaponSystem {
     } else c.shields = 0;
     c.shieldLevel = shield; this.lastKills = c.kills;
   }
-  clear(): void { this.mines.clear(); }
+  clear(): void {
+    this.mines.clear();
+    this.toyReady[0] = 0; this.toyReady[1] = 0;
+    this.toyCd = 0; this.orbCd = 0; this.orbCount = 0;
+  }
 }

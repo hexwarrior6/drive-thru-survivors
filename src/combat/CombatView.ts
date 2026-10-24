@@ -2,22 +2,26 @@ import Phaser from 'phaser';
 import type { DriftPhysics } from '../systems/DriftPhysics';
 import type { CombatSystem } from './CombatSystem';
 import type { TrackProjection } from '../systems/TrackProjection';
-const ENEMY_TEXTURES = ['cone', 'cart', 'rider'];
-const HIT_TEXTURES = ['cone-hit', 'cart-hit', 'rider-hit'];
+import type { Theme } from '../systems/Theme';
+const ENEMY_TEXTURES = ['cone', 'cart', 'rider', 'truck'];
+const HIT_TEXTURES = ['cone-hit', 'cart-hit', 'rider-hit', 'truck-hit'];
+const BULLET_TEXTURES = ['bullet', 'burger-bullet', 'fries-bullet', 'toy-bullet', 'missile-bullet'];
 /** Sprites (including three cached digit sprites per damage number) are created once. */
 export class CombatView {
   private readonly enemies: Phaser.GameObjects.Image[] = [];
   private readonly bullets: Phaser.GameObjects.Image[] = [];
   private readonly coins: Phaser.GameObjects.Image[] = [];
   private readonly digits: Phaser.GameObjects.Image[] = [];
+  private readonly hats: Phaser.GameObjects.Image[] = [];
   visibleEnemies = 0;
   visibleBullets = 0;
   private readonly turret: Phaser.GameObjects.Image;
-  constructor(scene: Phaser.Scene, private readonly model: CombatSystem, private readonly projection: TrackProjection) {
+  constructor(scene: Phaser.Scene, private readonly model: CombatSystem, private readonly projection: TrackProjection, private readonly theme?: Theme) {
     for (let i = 0; i < model.enemies.capacity; i++) this.enemies.push(scene.add.image(0, 0, 'cone').setVisible(false));
     for (let i = 0; i < model.bullets.capacity; i++) this.bullets.push(scene.add.image(0, 0, 'bullet').setVisible(false));
     for (let i = 0; i < model.coins.capacity; i++) this.coins.push(scene.add.image(0, 0, 'coin').setVisible(false));
     for (let i = 0; i < model.damage.capacity * 3; i++) this.digits.push(scene.add.image(0, 0, 'digit0').setVisible(false).setDepth(29));
+    if (theme?.hat) for (let i = 0; i < model.enemies.capacity; i++) this.hats.push(scene.add.image(0, 0, 'hat').setVisible(false).setDepth(29));
     this.turret = scene.add.image(0, 0, 'turret').setOrigin(0.5, 0.68);
   }
   private place(image: Phaser.GameObjects.Image, x: number, z: number, scale: number): void {
@@ -28,23 +32,31 @@ export class CombatView {
   draw(alpha: number): void {
     const m = this.model;
     this.visibleEnemies = this.visibleBullets = 0;
+    const campaignTint = this.theme?.tint ?? 0xffffff;
     for (let i = 0; i < this.enemies.length; i++) {
       const e = m.enemies.items[i], image = this.enemies[i];
-      if (!e.active) { image.setVisible(false); continue; }
+      if (!e.active) { image.setVisible(false); if (i < this.hats.length) this.hats[i].setVisible(false); continue; }
       const texture = e.flash > 0 ? HIT_TEXTURES[e.kind] : ENEMY_TEXTURES[e.kind]; if (image.texture.key !== texture) image.setTexture(texture);
       this.place(image, e.px + (e.x - e.px) * alpha, e.pz + (e.z - e.pz) * alpha, 1);
       if (image.visible) this.visibleEnemies++;
-      image.setTint(e.slowTime > 0 ? 0x80c6c3 : 0xffffff);
+      image.setTint(e.slowTime > 0 ? 0x80c6c3 : e.kind === 3 ? 0xffffff : campaignTint);
       image.setRotation(e.kind === 1 ? Math.sign(e.vx) * 0.22 : e.kind === 2 ? (e.x - e.px) * 0.08 : 0);
+      if (i < this.hats.length) {
+        const hat = this.hats[i];
+        if (e.kind === 2 && image.visible) {
+          hat.setPosition(image.x, image.y - 26 * image.scaleY).setRotation(image.rotation)
+            .setScale(image.scaleX * 0.9, image.scaleY * 0.9).setVisible(true);
+        } else hat.setVisible(false);
+      }
     }
     for (let i = 0; i < this.bullets.length; i++) {
       const b = m.bullets.items[i], image = this.bullets[i];
       if (!b.active) { image.setVisible(false); continue; }
-      const texture = b.kind === 1 ? 'burger-bullet' : b.kind === 2 ? 'fries-bullet' : 'bullet';
+      const texture = BULLET_TEXTURES[b.kind] ?? 'bullet';
       if (image.texture.key !== texture) image.setTexture(texture);
       this.place(image, b.px + (b.x - b.px) * alpha, b.pz + (b.z - b.pz) * alpha, 1);
       if (image.visible) this.visibleBullets++;
-      image.setTint(b.kind === 1 ? (b.level === 3 ? 0xffcf52 : 0xad713a) : b.kind === 2 ? 0xffcf52 : 0xffffff);
+      image.setTint(b.kind === 1 ? (b.level === 3 ? 0xffcf52 : 0xad713a) : b.kind === 2 ? 0xffcf52 : b.kind === 4 ? 0xff9d7a : 0xffffff);
       if (b.kind === 1 && b.level === 3) image.setScale(image.scaleX * 1.5, image.scaleY * 1.5);
       image.setRotation(Math.atan2(b.vx, b.vz));
     }

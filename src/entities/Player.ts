@@ -9,11 +9,13 @@ export class Player {
   readonly sprite: Phaser.GameObjects.Image;
   private chassis: Phaser.GameObjects.Image;
   private shadow: Phaser.GameObjects.Ellipse;
-  constructor(scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene, tint = 0xa74b32) {
     this.shadow = scene.add.ellipse(225, CAR_Y + 10, 58, 58, 0x263c32, 0.24);
-    this.chassis = scene.add.image(225, CAR_Y + 5, 'car').setTint(0xa74b32);
+    this.chassis = scene.add.image(225, CAR_Y + 5, 'car').setTint(tint);
     this.sprite = scene.add.image(225, CAR_Y, 'car');
   }
+  /** Recolor the chassis for car selection previews. */
+  chassisTint(tint: number): void { this.chassis.setTint(tint); }
   render(alpha: number, kick: number, projection: TrackProjection): void {
     const p = this.physics;
     const x = p.previousX + (p.x - p.previousX) * alpha;

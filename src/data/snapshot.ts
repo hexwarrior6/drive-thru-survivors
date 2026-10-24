@@ -48,7 +48,7 @@ export function demoSnapshot(city = '上海', seed = 1): Snapshot {
     fetchedAt: new Date().toISOString(),
     campaign: '金秋出游补给季 · 示例主题',
     notes: ['全部门店、餐品、价格和优惠均为游戏示例。', '道路为虚构棋盘；所有购买只扣除虚拟预算。'],
-    coupons: [],
+    coupons: [{ title: '金秋特惠 · 全场 9 折', description: '示例优惠券：本站餐品按 9 折结算虚拟金币，划线价为原价。' }],
     stores: districts.map((d, i) => ({
       id: `demo-${i}`,
       name: `${d}得来速`,

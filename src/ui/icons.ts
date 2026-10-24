@@ -1,7 +1,7 @@
 /** Flat two-tone mini icons drawn in the game palette; never platform emoji. */
 export type StatIcon =
   | 'burst' | 'clock' | 'pierce' | 'fan' | 'snow' | 'boom' | 'flame'
-  | 'gauge' | 'bolt' | 'heart' | 'shield' | 'magnet' | 'drain' | 'up' | 'coin';
+  | 'gauge' | 'bolt' | 'heart' | 'shield' | 'magnet' | 'drain' | 'up' | 'coin' | 'orbit';
 
 const paths: Record<StatIcon, string> = {
   burst: '<path fill="#e75239" d="M12 1.5l1.8 5.6 5.3-2.6-2.6 5.3 5.6 1.8-5.6 1.8 2.6 5.3-5.3-2.6-1.8 5.6-1.8-5.6-5.3 2.6 2.6-5.3L1.5 12l5.6-1.8-2.6-5.3 5.3 2.6Z"/>',
@@ -19,6 +19,7 @@ const paths: Record<StatIcon, string> = {
   drain: '<path fill="#bd4735" d="M12 22 5 13.5h4.5V3h5v10.5H19Z"/>',
   up: '<path fill="#8bbf57" d="M12 2 19 10.5h-4.5V21h-5V10.5H5Z"/>',
   coin: '<circle cx="12" cy="12" r="9" fill="#ffcf52" stroke="#c49a3e" stroke-width="2"/><circle cx="12" cy="12" r="4" fill="none" stroke="#c49a3e" stroke-width="2"/>',
+  orbit: '<circle cx="12" cy="12" r="8" fill="none" stroke="#bce4df" stroke-width="2.2" stroke-dasharray="3.5 4"/><circle cx="12" cy="4" r="3.4" fill="#fff9e8" stroke="#754329" stroke-width="1.6"/>',
 };
 
 export function statIcon(name: StatIcon, size = 10): string {

@@ -43,5 +43,21 @@ export class WeaponView {
       g.fillStyle(m.exploded ? 0xffcf52 : Math.sin(time * Math.PI * 4) > 0 ? 0xe75239 : 0xffcf52, m.exploded ? .2 : 1);
       g.fillEllipse(projection.x, projection.y, r * 2, r * 1.4);
     }
+    // Happy-meal escorts: little gold karts bobbing at the flanks.
+    for (let i = 0; i < this.model.toyCount; i++) {
+      projection.project(this.model.toyZ[i], this.model.toyX[i]);
+      const s = projection.scale, bob = Math.sin(time * 9 + i * 2.4) * 2;
+      g.fillStyle(0x754329, 1); g.fillRoundedRect(projection.x - 12 * s, projection.y - 15 * s + bob, 24 * s, 22 * s, 6 * s);
+      g.fillStyle(0xffcf52); g.fillRoundedRect(projection.x - 10 * s, projection.y - 13 * s + bob, 20 * s, 14 * s, 4 * s);
+      g.fillStyle(0x354e3c); g.fillCircle(projection.x - 5 * s, projection.y - 7 * s + bob, 2.2 * s); g.fillCircle(projection.x + 5 * s, projection.y - 7 * s + bob, 2.2 * s);
+      g.fillStyle(0x293e37); g.fillRect(projection.x - 9 * s, projection.y + 5 * s + bob, 5 * s, 4 * s); g.fillRect(projection.x + 4 * s, projection.y + 5 * s + bob, 5 * s, 4 * s);
+    }
+    // Orbiting sweet-cone shards for shield tiers two and three.
+    for (let i = 0; i < this.model.orbCount; i++) {
+      projection.project(this.model.orbZ[i], this.model.orbX[i]);
+      const r = 7 * projection.scale;
+      g.fillStyle(0xfff9e8, .95); g.fillCircle(projection.x, projection.y, r);
+      g.lineStyle(2, 0x80c6c3, .9); g.strokeCircle(projection.x, projection.y, r);
+    }
   }
 }
