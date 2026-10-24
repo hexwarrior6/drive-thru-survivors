@@ -72,6 +72,10 @@ export class BootScene extends Phaser.Scene {
     g.fillStyle(C.orange); g.fillRoundedRect(0, 0, 10, 22, 5);
     g.fillStyle(C.panel); g.fillRoundedRect(3, 2, 4, 14, 2);
     g.generateTexture('bullet', 10, 22); g.clear();
+    g.lineStyle(1.5, C.gold); g.fillStyle(0xad713a); g.fillCircle(8, 8, 6); g.strokeCircle(8,8,6);
+    g.fillStyle(C.leaf); g.fillRect(2,7,12,3); g.fillStyle(0xedb355); g.fillEllipse(8,4,11,5);
+    g.generateTexture('burger-bullet',16,16); g.clear();
+    g.fillStyle(C.gold); g.fillRect(0,0,3,12); g.generateTexture('fries-bullet',3,12); g.clear();
     g.fillStyle(C.border); g.fillCircle(10, 10, 9);
     g.fillStyle(C.gold); g.fillCircle(10, 10, 7);
     g.fillStyle(0xffedaa); g.fillRect(8, 5, 3, 9);

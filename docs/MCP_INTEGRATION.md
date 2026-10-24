@@ -105,7 +105,7 @@ interface GameSnapshot {
     title: string;
     date: string;
   };
-  stores: Store[];                     // 3-5 家得来速门店
+  stores: Store[];                     // 1-5 家得来速门店
   products: Product[];                 // 已验证的单品列表
 }
 
@@ -165,7 +165,7 @@ function mapProductToWeapon(product: Product): WeaponType {
   3. 携带 `reservationDate: "YYYY-MM-DD 12:00"` 查询菜单
   4. 在快照中标注"预约菜单参考时间"
 - **绝不进行真实预约或下单操作**
-- 若候选得来速门店少于 3 家：返回 422 错误，引导用户切换区域或进入示例模式
+- 若无可用得来速门店，或没有任何门店能提供至少 3 款已核价单品：返回 422 错误，引导用户切换区域或进入示例模式；只有 1 家有效店也可开始游戏
 
 ## 缓存与限流
 
@@ -200,3 +200,10 @@ function mapProductToWeapon(product: Product): WeaponType {
 - ❌ 在游戏运行中请求 MCP（只在开局构建快照）
 - ❌ 伪造不存在的门店或餐品
 - ❌ 将游戏能力声明为餐品的真实功能
+
+
+## 当前实现补充：城市出发与菜单差异
+
+实际复用的快照 wire schema 以 `src/data/snapshot.ts` 为准：餐品位于 `stores[].products`，`id` 对应商品编码、`price` 为最终整数分、`category` 为 main / side / drink。可选 `menuPresence: { stores, compared }` 记录商品名在本次候选菜单中的出现范围。该比较在截取核价名单前进行，不代表全国独家。
+
+开局 UI 仅输入 / 选择城市，也可用骰子从 40 个常用城市中随机选城；不提供手动选店。网关 `city` 接受 1–20 字城市名，省略 `area` 时自动用城市名检索。随机预载最多 4 家有效门店作为本局路线池，不表示全市门店总数；优先营业中门店。前端随机安排首站和后续停靠，访问完路线池后再洗牌，尽量避免连续重复。服务端每店最多尝试 18 款差异 / 风味优先且覆盖各类别的单品，展示通过详情与计价验证的子集；前端保留 3 张推荐卡，并允许展开其余已核价单品。所有选购仍只扣除游戏金币。

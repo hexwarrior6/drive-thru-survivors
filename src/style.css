@@ -286,3 +286,70 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 .pit-panel p { margin:2px 0; line-height:1.4; }
 .pit-panel small { margin:6px 0 10px; font-size:9px; }
 .pit-panel .primary { padding:10px 16px; }
+/* Pit shop fits the driving viewport and scrolls internally on short screens. */
+.pit-panel { left:12px; right:12px; margin-inline:auto; width:calc(100% - 24px); max-width:530px; bottom:12px; max-height:calc(100% - 115px); overflow:auto; padding:14px; box-sizing:border-box; pointer-events:auto; }
+.pit-panel h2 { font-size:18px; margin:5px 0; }
+#shop-source { color:#647663; font-size:10px; }
+#shop-balance { font-weight:800; padding:5px 0; }
+#shop-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin:8px 0; }
+.food-card { border:1px solid #c8b890; border-radius:12px; background:#fcf3d9; padding:7px; min-width:0; text-align:left; display:flex; flex-direction:column; }
+.food-art { height:48px; text-align:center; }
+.food-art svg { height:100%; width:72px; }
+.food-card h3 { font-size:13px; margin:5px 0; overflow-wrap:anywhere; }
+.food-card b { font-size:10px; color:#ad4931; }
+.food-card p { font-size:10px; flex:1; margin:6px 0 8px; }
+.food-card button, .repair-button, #replacement button { min-height:44px; border:1px solid #754329; border-radius:8px; background:#ffcf52; font:700 11px system-ui; color:#354e3c; cursor:pointer; padding:4px; }
+.pit-panel button:disabled { opacity:.45; cursor:default; }
+.repair-button { width:100%; }
+#weapon-slots { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px; margin:10px 0; }
+.weapon-slot { white-space:pre-line; min-height:48px; min-width:0; border:1px solid #c8b890; border-radius:8px; background:#fff9e8; font:700 9px system-ui; color:#354e3c; padding:4px 1px; }
+.pit-panel .weapon-slot:disabled { opacity:1; }
+.weapon-slot.replaceable { border:2px solid #e7ad29; cursor:pointer; }
+.weapon-slot.selected { background:#ffcf52; border-color:#ad4931; }
+#replacement { border:1px solid #e7ad29; border-radius:8px; padding:6px; margin-bottom:8px; }
+#replacement button { margin:4px; padding:6px 14px; }
+.pit-panel .shop-note { font-size:9px; margin-bottom:7px; color:#78846c; }
+.destination-panel { top:22%; max-width:326px; margin-inline:auto; max-height:calc(100% - 100px); overflow:auto; padding:18px; text-align:left; border:1.5px solid #75432955; box-shadow:0 5px 0 #7543291c; background:#fff9e8fa; }
+.departure-eyebrow { display:flex; align-items:center; gap:6px; color:#647663; font-size:8px; font-weight:800; letter-spacing:1.2px; }
+.departure-eyebrow > span:last-child { margin-left:auto; color:#e75239; font-size:16px; line-height:1; }
+.departure-dot { width:6px; height:6px; border-radius:50%; background:#e75239; }
+.destination-panel h2 { font-size:26px; letter-spacing:-1px; line-height:1.2; margin:13px 0 5px; }
+.destination-panel .departure-copy { font-size:11px; line-height:1.5; color:#78846c; margin:0 0 17px; }
+.city-label { display:flex; align-items:center; justify-content:space-between; font-size:11px; font-weight:800; }
+.city-label span { color:#78846c; font-size:9px; font-weight:400; }
+.city-row { display:grid; grid-template-columns:minmax(0,1fr) 44px; column-gap:7px; margin:7px 0 12px; }
+.city-row input { flex:1; width:100%; min-width:0; min-height:44px; box-sizing:border-box; border:1px solid #bfae87; border-radius:9px; background:#fcf3d9; color:#354e3c; font:700 15px system-ui; padding:9px 11px; }
+.dice-button { grid-column:2; grid-row:1; width:44px; height:44px; flex:none; padding:10px; border:1px solid #bfae87; border-radius:9px; background:#ffcf52; color:#754329; cursor:pointer; box-shadow:0 2px 0 #75432922; }
+.dice-button svg { display:block; width:22px; height:22px; }
+.dice-button rect { fill:none; stroke:currentColor; stroke-width:1.6; }
+.dice-button circle { fill:currentColor; }
+.dice-button:active { transform:translateY(2px); box-shadow:none; }
+.destination-panel .primary { min-height:44px; padding:10px 14px; font-size:14px; display:block; width:100%; text-align:center; }
+.destination-panel button:disabled,.city-row input:disabled { opacity:.6; cursor:default; }
+.destination-panel #destination-status { font-size:9px; line-height:1.5; min-height:14px; margin:10px 0 0; color:#78846c; text-align:center; }
+.next-stop { font-size:10px; line-height:1.4; color:#754329; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:4px; }
+#shop-address { font-size:10px; color:#647663; }
+.product-highlight { display:block; background:#ffcf5266; border-radius:4px; color:#754329; font-size:9px; padding:3px; margin-bottom:4px; }
+#store-menu { text-align:left; margin:8px 0; border:1px solid #c8b890; padding:8px; border-radius:8px; }
+#store-menu summary { cursor:pointer; font-size:11px; font-weight:700; min-height:30px; padding-top:8px; }
+#store-menu .menu-explanation { font-size:10px; color:#647663; margin-bottom:8px; }
+#menu-products { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
+.menu-card .food-art { height:35px; }
+.pit-panel .menu-scope { font-size:9px; color:#647663; margin:4px 0; }
+#next-wave { position:sticky; bottom:0; z-index:2; box-shadow:0 -8px 10px #fff9e8; }
+.city-picker { display:contents; }
+.city-input-wrap { position:relative; grid-column:1; grid-row:1; }
+.city-input-wrap input { padding-right:36px; }
+.city-input-wrap:focus-within input { outline:2px solid #ffcf52; outline-offset:1px; }
+.city-toggle { position:absolute; right:0; top:0; width:36px; height:44px; padding:10px; border:0; border-radius:0 9px 9px 0; background:transparent; color:#754329; cursor:pointer; }
+.city-toggle svg { display:block; width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; transition:transform .15s; }
+.city-toggle[aria-expanded="true"] svg { transform:rotate(180deg); }
+.city-options-panel { grid-column:1/-1; grid-row:2; margin-top:7px; padding:9px; border:1px solid #c8b890; border-radius:10px; background:#fff9e8; box-shadow:0 3px 0 #75432912; }
+.city-options-heading { display:flex; justify-content:space-between; align-items:center; font-size:10px; font-weight:800; color:#754329; padding:1px 2px 7px; }
+.city-options-heading span { font-size:9px; font-weight:400; color:#78846c; }
+.city-options { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:4px; max-height:140px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:#c8b890 transparent; }
+.city-option { min-height:44px; min-width:0; border:1px solid transparent; border-radius:6px; background:#fcf3d9; color:#354e3c; padding:4px 2px; font:500 11px system-ui; cursor:pointer; }
+.city-option:hover,.city-option.is-active { background:#ffcf5255; border-color:#d9bd70; }
+.city-option[aria-selected="true"] { background:#ffcf52; border-color:#c49a3e; font-weight:800; }
+#city-empty { font-size:10px; color:#78846c; line-height:1.6; margin:4px 0; }
+.city-options-panel[hidden],#city-empty[hidden] { display:none; }

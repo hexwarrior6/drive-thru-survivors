@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@fastify/rate-limit": "^10.3.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "fastify": "^5.6.0",
     "phaser": "^3.90.0",
     "zod": "^4.1.0"

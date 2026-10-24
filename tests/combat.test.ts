@@ -163,7 +163,7 @@ test('45-second wave freezes combat, eases into pit, grants reward once, next wa
   w.number = 10; w.state = 'pit'; w.next(c, p); assert.equal(w.remaining, 60);
 });
 test('combat hot paths contain no object construction, literals or closure allocation', () => {
-  for (const path of ['src/combat/CombatSystem.ts', 'src/combat/CombatView.ts', 'src/systems/PitStopView.ts', 'src/systems/WaveSystem.ts', 'src/effects/ParticleManager.ts', 'src/scenes/GameScene.ts']) {
+  for (const path of ['src/combat/WeaponSystem.ts', 'src/combat/WeaponView.ts', 'src/combat/CombatSystem.ts', 'src/combat/CombatView.ts', 'src/systems/PitStopView.ts', 'src/systems/WaveSystem.ts', 'src/effects/ParticleManager.ts', 'src/scenes/GameScene.ts']) {
     const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
     const scan = (node: ts.Node) => {
       assert.ok(!ts.isNewExpression(node) && !ts.isObjectLiteralExpression(node) && !ts.isArrayLiteralExpression(node) && !ts.isArrowFunction(node) && !ts.isFunctionExpression(node), `${path}: allocation in hot method: ${node.getText(source).slice(0, 70)}`);

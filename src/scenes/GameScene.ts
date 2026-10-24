@@ -1,4 +1,9 @@
 import Phaser from 'phaser';
+import { ShopSystem } from '../systems/ShopSystem';
+import { ShopView } from '../ui/ShopView';
+import { WeaponSystem } from '../combat/WeaponSystem';
+import { WeaponView } from '../combat/WeaponView';
+import { demoSnapshot } from '../data/snapshot';
 import { CombatSystem } from '../combat/CombatSystem';
 import { StressMeter } from '../combat/StressMeter';
 import { CombatView } from '../combat/CombatView';
@@ -18,6 +23,10 @@ import { getCarY, updateCarY } from '../ui/RaceLayout';
 import { clamp } from '../utils/math';
 
 export class GameScene extends Phaser.Scene {
+  shop!: ShopSystem;
+  weapons!: WeaponSystem;
+  private shopView!: ShopView;
+  private weaponView!: WeaponView;
   player!: Player;
   audio!: AudioSynth;
   particles!: ParticleManager;
@@ -67,6 +76,10 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this);
     this.combat = new CombatSystem(this.particles);
     this.wave = new WaveSystem();
+    this.shop = new ShopSystem(this.registry.get('snapshot') ?? demoSnapshot());
+    this.weapons = new WeaponSystem(this.shop.slots, this.combat);
+    this.weaponView = new WeaponView(this, this.weapons, this.track.projection);
+    this.shopView = new ShopView(this.shop, this.combat, this.registry.get('snapshotReason') ?? '本地示例', () => this.hud.updateCombat(this.combat, this.wave));
     this.pitView = new PitStopView(this, this.track.projection);
     if (import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'pit') {
       this.wave.remaining = 2.8;
@@ -85,6 +98,9 @@ export class GameScene extends Phaser.Scene {
     document.getElementById('pause')!.addEventListener('click', () => this.togglePause(), options);
     document.getElementById('resume')!.addEventListener('click', () => { this.audio.unlock(); this.togglePause(); }, options);
     document.getElementById('next-wave')!.addEventListener('click', () => {
+      if (this.wave.state !== 'pit') return;
+      this.weapons.clear();
+      this.updateDestination(this.wave.number + 1);
       this.wave.next(this.combat, this.player.physics); this.pitPanel.classList.add('hidden');
       document.getElementById('drive-ui')!.classList.remove('hidden');
       this.inputControls.clear(); this.audio.setPaused(false);
@@ -103,7 +119,11 @@ export class GameScene extends Phaser.Scene {
     updateCarY(this.scale.height);
     this.hud.update(this.player.physics, 0);
     this.hud.updateCombat(this.combat, this.wave);
+    this.updateDestination();
     this.events.once('shutdown', () => { this.abort.abort(); this.inputControls.destroy(); this.audio.destroy(); });
+  }
+  private updateDestination(wave = this.wave.number): void {
+    document.getElementById('next-stop')!.textContent = `前方到站 · ${this.shop.destination(wave).name}`;
   }
   private toggleMute(): void {
     this.audio.unlock(); this.audio.setMuted(!this.audio.muted);
@@ -125,8 +145,10 @@ export class GameScene extends Phaser.Scene {
   private fixedUpdate(): void {
     const p = this.player.physics;
     if (this.wave.state === 'combat') {
+      this.weapons.configure(p);
       p.step(this.inputControls.sample(), FIXED_DT, this.track.route.curvatureAt(p.progress));
       this.combat.step(p, FIXED_DT);
+      this.weapons.step(p, FIXED_DT);
       if (this.combat.impact && !this.reducedMotion) this.shake.trigger(3, 0.1);
       if (this.stress) { this.combat.health = 100; this.fillStress(); }
       if (this.combat.health <= 0) {
@@ -138,8 +160,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.stress) this.wave.step(p, this.combat, FIXED_DT);
     if (before !== this.wave.state) {
       this.hud.update(p, 0);
-      if (this.wave.state === 'entering') this.hud.showNotice('波次完成 · 正在驶入得来速', 3);
-      if (this.wave.state === 'pit') { this.pitPanel.classList.remove('hidden'); document.getElementById('drive-ui')!.classList.add('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
+      if (this.wave.state === 'entering') { this.weapons.clear(); this.hud.showNotice('正在驶入 · ' + this.shop.destination(this.wave.number).name, 3); }
+      if (this.wave.state === 'pit') { this.shopView.open(this.wave.number); this.pitPanel.classList.remove('hidden'); document.getElementById('drive-ui')!.classList.add('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
       this.hud.updateCombat(this.combat, this.wave);
     }
     this.elapsed += FIXED_DT;
@@ -189,6 +211,7 @@ export class GameScene extends Phaser.Scene {
     this.pitView.draw(this.wave.pitProgress, pitVisible, this.elapsed);
     this.player.render(alpha, this.reducedMotion ? 0 : this.kick, this.track.projection);
     this.combatView.draw(alpha);
+    this.weaponView.draw(this.player.physics, this.elapsed);
     this.combatView.drawTurret(this.player.physics, alpha, this.reducedMotion ? 0 : this.kick);
     this.particles.draw();
     this.player.sprite.setAlpha(this.combat.impact ? 0.55 : 1);

@@ -89,6 +89,7 @@ export class WaveSystem {
     if (t >= 1) {
       this.state = leaving ? 'combat' : 'pit'; p.heading = p.previousHeading = 0;
       if (!leaving) p.vx = p.vy = p.speed = 0;
+      else { p.nitroTime = 2; p.didBoost = true; p.vy = -BASE_SPEED * 1.5; p.speed = BASE_SPEED * 1.5; }
       p.previousProgress = p.progress; p.previousX = p.x;
     }
   }

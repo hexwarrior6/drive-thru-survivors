@@ -1,4 +1,7 @@
 import Phaser from 'phaser';
+import { randomStartingCity } from '../data/cities';
+import { CityCombobox } from '../ui/CityCombobox';
+import { loadSnapshot } from '../data/loadSnapshot';
 import { updateSoundButton } from '../ui/UtilityControls';
 import { Player } from '../entities/Player';
 import { TrackGenerator } from '../systems/TrackGenerator';
@@ -14,7 +17,27 @@ export class TitleScene extends Phaser.Scene {
     this.car = new Player(this);
     document.getElementById('title')!.classList.remove('hidden');
     this.abort = new AbortController();
-    document.getElementById('start')!.addEventListener('click', () => {
+    const start = document.getElementById('start') as HTMLButtonElement;
+    const city = document.getElementById('destination-city') as HTMLInputElement;
+    const dice = document.getElementById('random-city') as HTMLButtonElement;
+    const cityPicker = new CityCombobox(this.abort.signal);
+    const status = document.getElementById('destination-status')!;
+    start.disabled = city.disabled = dice.disabled = false;
+    (document.getElementById('toggle-cities') as HTMLButtonElement).disabled = false; start.textContent = '发动引擎 ↗';
+    status.textContent = '选个城市，沿途随机停靠真实得来速。';
+    dice.addEventListener('click', () => { cityPicker.close(); city.value = randomStartingCity(city.value); status.textContent = `下一程，${city.value}。准备好就出发。`; }, { signal: this.abort.signal });
+    document.getElementById('start')!.addEventListener('click', async () => {
+      if (start.disabled) return;
+      const cityName = city.value.trim();
+      if (!cityName || cityName.length > 20) { status.textContent = '请输入城市名，或掷骰子选一座。'; city.focus(); return; }
+      cityPicker.close();
+      start.disabled = city.disabled = dice.disabled = true;
+      (document.getElementById('toggle-cities') as HTMLButtonElement).disabled = true;
+      start.textContent = '正在准备路线…'; status.textContent = '正在准备沿途餐品，首次出发可能需要约一分钟。';
+      const data = await loadSnapshot(cityName);
+      if (this.abort?.signal.aborted) return;
+      this.registry.set('snapshot', data.snapshot);
+      this.registry.set('snapshotReason', data.reason);
       document.getElementById('title')!.classList.add('hidden');
       (document.activeElement as HTMLElement)?.blur();
       this.scene.start('Game');

@@ -9,6 +9,9 @@ export function tierForCharge(seconds: number): DriftTier {
 const PULSES = [0, 0.15, 0.25, 0.4];
 /** Pure fixed-step model. Heading H and world-space velocity V remain independent. */
 export class DriftPhysics {
+  speedBonus = 0;
+  chargeBonus = 0;
+  nitroRegen = 0;
   progress = 0;
   previousProgress = 0;
   x = 225;
@@ -45,6 +48,7 @@ export class DriftPhysics {
     this.released = 0;
     this.hitWall = 0;
     this.didBoost = false;
+    this.nitro = Math.min(100, this.nitro + this.nitroRegen * dt);
     this.wallCooldown = Math.max(0, this.wallCooldown - dt);
     this.nitroTime = Math.max(0, this.nitroTime - dt);
     this.pulseTime = Math.max(0, this.pulseTime - dt);
@@ -76,7 +80,7 @@ export class DriftPhysics {
       this.recovery = 0.4;
     }
     if (this.drifting) {
-      this.charge += dt;
+      this.charge += dt * (1 + this.chargeBonus);
       this.tier = tierForCharge(this.charge);
     }
     // Rotate both vectors into the road's new tangent frame. This produces
@@ -99,7 +103,7 @@ export class DriftPhysics {
     let lateral = this.vx * sx + this.vy * sy;
     lateral *= Math.pow(this.drifting ? 0.98 : 0.88, dt * 60);
     const multiplier = Math.max(this.nitroTime > 0 ? 1.5 : 1, this.pulseTime > 0 ? 1 + this.pulseRatio : 1);
-    const targetSpeed = input.brake ? 65 : input.throttle ? BASE_SPEED * multiplier : 0;
+    const targetSpeed = input.brake ? 65 : input.throttle ? BASE_SPEED * multiplier * (1 + this.speedBonus) : 0;
     forward = lerp(forward, targetSpeed, 1 - Math.exp(-(input.brake ? 3.8 : input.throttle ? 1.7 : 0.65) * dt));
     this.vx = hx * forward + sx * lateral;
     this.vy = hy * forward + sy * lateral;

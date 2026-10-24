@@ -30,8 +30,10 @@ export function createPitTextures(scene: Phaser.Scene): void {
   g.fillStyle(C.ink); g.lineStyle(2, C.border); g.fillRoundedRect(2, 3, 98, 52, 8); g.strokeRoundedRect(2, 3, 98, 52, 8);
   g.fillStyle(C.gold); g.fillRoundedRect(10, 34, 66, 12, 3);
   g.fillTriangle(73, 29, 93, 40, 73, 51);
+  g.lineStyle(5, C.gold);
+  g.beginPath(); g.moveTo(25, 30); g.lineTo(25, 17); g.arc(32,17,7,Math.PI,0); g.lineTo(39,30); g.lineTo(39,17); g.arc(46,17,7,Math.PI,0); g.lineTo(53,30); g.strokePath();
   g.generateTexture('pit-direction', 104, 90); g.clear();
-  stamp(scene, 'pit-direction', 'PIT ENTRY', 51, 24, 'bold 11px system-ui', '#fff9e8');
+  stamp(scene, 'pit-direction', 'DRIVE THRU', 52, 10, 'bold 11px system-ui', '#fff9e8');
 
   g.fillStyle(C.gold); g.fillPoints([{x:16,y:2},{x:31,y:22},{x:23,y:22},{x:23,y:50},{x:9,y:50},{x:9,y:22},{x:1,y:22}], true);
   g.generateTexture('pit-arrow', 32, 54); g.clear();

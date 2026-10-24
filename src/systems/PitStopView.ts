@@ -83,6 +83,7 @@ export class PitStopView {
     this.place(this.service, station + 8, 174, 0.8);
     this.place(this.pavilion, station + 10, 225, 0.92);
     this.place(this.board, station - 410, MAIN_ROAD_HALF + 38, 0.68);
+    this.board.setAlpha(0.72 + Math.sin(time * 8) * 0.28);
     for (let i = 0; i < this.bollards.length; i++) {
       const relative = -60 + i * 30;
       this.place(this.bollards[i], station + relative, MAIN_ROAD_HALF + 9, 0.55);

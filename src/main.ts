@@ -6,7 +6,7 @@ import { TitleScene } from './scenes/TitleScene';
 import { GameScene } from './scenes/GameScene';
 import { installRaceLayout } from './ui/RaceLayout';
 
-const game = new Phaser.Game({
+export const game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: WIDTH, height: HEIGHT,
   backgroundColor: '#fcf3d9', banner: false, antialias: true,
   // Native synthesis owns audio, so Phaser does not create a second AudioContext.
@@ -35,5 +35,6 @@ if (import.meta.env.DEV) Object.defineProperty(window, '__driveThru', { configur
       visibleEnemies: scene.combatView.visibleEnemies, visibleBullets: scene.combatView.visibleBullets,
       visibleParticles: scene.particles.visibleCount, damageNumbers: scene.combat.damage.activeCount, ramDamage: scene.combat.lastRamDamage,
       droppedBullets: scene.combat.bullets.dropped, droppedEnemies: scene.combat.enemies.dropped } : undefined,
+    weapons: scene?.shop?.slots.map(w => w ? { name: w.name, type: w.type, level: w.level } : null),
     audio: scene?.audio?.diagnostics, particles: scene?.particles?.activeCount, fps: game.loop.actualFps };
 } });

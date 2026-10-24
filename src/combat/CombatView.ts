@@ -34,13 +34,18 @@ export class CombatView {
       const texture = e.flash > 0 ? HIT_TEXTURES[e.kind] : ENEMY_TEXTURES[e.kind]; if (image.texture.key !== texture) image.setTexture(texture);
       this.place(image, e.px + (e.x - e.px) * alpha, e.pz + (e.z - e.pz) * alpha, 1);
       if (image.visible) this.visibleEnemies++;
+      image.setTint(e.slowTime > 0 ? 0x80c6c3 : 0xffffff);
       image.setRotation(e.kind === 1 ? Math.sign(e.vx) * 0.22 : e.kind === 2 ? (e.x - e.px) * 0.08 : 0);
     }
     for (let i = 0; i < this.bullets.length; i++) {
       const b = m.bullets.items[i], image = this.bullets[i];
       if (!b.active) { image.setVisible(false); continue; }
+      const texture = b.kind === 1 ? 'burger-bullet' : b.kind === 2 ? 'fries-bullet' : 'bullet';
+      if (image.texture.key !== texture) image.setTexture(texture);
       this.place(image, b.px + (b.x - b.px) * alpha, b.pz + (b.z - b.pz) * alpha, 1);
       if (image.visible) this.visibleBullets++;
+      image.setTint(b.kind === 1 ? (b.level === 3 ? 0xffcf52 : 0xad713a) : b.kind === 2 ? 0xffcf52 : 0xffffff);
+      if (b.kind === 1 && b.level === 3) image.setScale(image.scaleX * 1.5, image.scaleY * 1.5);
       image.setRotation(Math.atan2(b.vx, b.vz));
     }
     for (let i = 0; i < this.coins.length; i++) {
@@ -73,7 +78,7 @@ export class CombatView {
     projection.project(z + this.model.aimZ * 45, x + this.model.aimX * 45);
     const angle = Math.atan2(projection.x - sx, sy - projection.y);
     this.turret.setPosition(sx, sy - 5 + kick).setRotation(angle).setScale(scale, scale * 0.85)
-      .setDepth(10 + sy / 100 + 0.05).setAlpha(this.model.muzzleFlash > 0 ? 0.7 : 1);
+      .setVisible(this.model.starterEnabled).setDepth(10 + sy / 100 + 0.05).setAlpha(this.model.muzzleFlash > 0 ? 0.7 : 1);
   }
 
 }
