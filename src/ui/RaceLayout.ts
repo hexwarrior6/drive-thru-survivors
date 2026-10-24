@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { CAR_Y, HEIGHT, MAX_VIEW_RATIO, MIN_VIEW_RATIO, WIDTH } from '../config';
+import { CAR_Y, MAX_VIEW_RATIO, MIN_VIEW_RATIO, WIDTH } from '../config';
 import { clamp } from '../utils/math';
 
 const mobileQuery = '(max-width: 700px)';
@@ -13,7 +13,7 @@ export function installRaceLayout(game: Phaser.Game): () => void {
     // FIT still controls scaling. The world ratio floats between fixed bounds and
     // letterboxes beyond them, so extreme screens never stretch the playable view.
     const ratio = clamp(stage.clientHeight / Math.max(1, stage.clientWidth), MIN_VIEW_RATIO, MAX_VIEW_RATIO);
-    const height = mobile.matches ? Math.round(WIDTH * ratio) : HEIGHT;
+    const height = Math.round(WIDTH * ratio);
     if (height > 0 && game.scale.height !== height) game.scale.setGameSize(WIDTH, height);
     game.scale.refresh();
     updateCarY(height);

@@ -6,6 +6,8 @@ import { statIcon } from './icons';
 const get = (id: string) => document.getElementById(id)!;
 const labels = ['保持转向蓄力', '蓝焰就绪 · 松手加速', '橙焰就绪 · 松手加速', '紫焰全开 · 松手加速'];
 const colors = ['#70cfff', '#70cfff', '#ffa13f', '#b98be9'];
+/** Seconds the combo badge lingers on screen after the chain breaks. */
+const COMBO_LINGER_S = 3;
 
 export class HUD {
   private speed = get('speed'); private distance = get('distance');
@@ -78,20 +80,28 @@ export class HUD {
     if (c.combo === this.lastCombo) return;
     const changed = this.lastCombo >= 0 && c.combo > this.lastCombo;
     this.lastCombo = c.combo;
-    this.combo.classList.toggle('hidden', c.combo < 2);
     if (c.combo >= 2) {
+      this.comboLinger = 0;
+      this.combo.classList.remove('hidden');
       this.comboCount.textContent = String(c.combo);
       if (changed) {
         this.combo.classList.remove('pop');
         void this.combo.offsetWidth;
         this.combo.classList.add('pop');
       }
+    } else if (this.comboLinger === 0 && !this.combo.classList.contains('hidden')) {
+      this.comboLinger = COMBO_LINGER_S;
     }
   }
   private notice = ''; private noticeTime = 0;
+  private comboLinger = 0;
   showNotice(text: string, duration = 1): void { this.notice = text; this.noticeTime = duration; }
   update(p: DriftPhysics, dt: number): void {
     this.noticeTime = Math.max(0, this.noticeTime - dt);
+    if (this.comboLinger > 0) {
+      this.comboLinger = Math.max(0, this.comboLinger - dt);
+      if (this.comboLinger === 0) this.combo.classList.add('hidden');
+    }
     this.speed.textContent = String(Math.round(p.speed * 0.52));
     this.distance.textContent = `${(p.distance / 1000).toFixed(2)} km`;
     this.nitro.textContent = String(Math.floor(p.nitro)); this.nitroFill.style.width = `${p.nitro}%`;

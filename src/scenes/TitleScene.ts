@@ -68,7 +68,7 @@ export class TitleScene extends Phaser.Scene {
       this.scene.start('Select');
     }, options);
     const sound = document.getElementById('sound')!;
-    document.querySelector('.masthead')!.append(sound);
+    document.querySelector('.intro-brand')!.append(sound);
     updateSoundButton(sound, this.registry.get('muted') === true);
     sound.addEventListener('click', () => {
       const muted = this.registry.get('muted') !== true;

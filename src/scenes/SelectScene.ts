@@ -14,13 +14,19 @@ export class SelectScene extends Phaser.Scene {
   private selected: CarId = 'flash';
   constructor() { super('Select'); }
   create(): void {
-    document.body.classList.remove('is-driving');
+    // Abandoning from the pause or pit dialogs lands here: close every game overlay
+    // they left open, mirroring the cleanup ResultScene does on settlement.
+    document.body.classList.remove('is-driving', 'low-health', 'is-pit');
     this.track = new TrackGenerator(this);
     this.car = new Player(this);
     const panel = document.getElementById('select-panel')!;
     panel.classList.remove('hidden');
     document.getElementById('title')!.classList.add('hidden');
     document.getElementById('result-panel')!.classList.add('hidden');
+    document.getElementById('pause-panel')!.classList.add('hidden');
+    document.getElementById('pit-panel')!.classList.add('hidden');
+    document.getElementById('drive-ui')!.classList.add('hidden');
+    document.getElementById('combo')!.classList.add('hidden');
     document.getElementById('hud')!.classList.add('hidden');
     const snapshot = this.registry.get('snapshot') ?? demoSnapshot();
     const theme = themeFor(snapshot.campaign);
