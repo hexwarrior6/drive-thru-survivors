@@ -1,4 +1,5 @@
 import type { Product } from '../data/snapshot';
+import type { StatIcon } from '../ui/icons';
 export type WeaponType = 'starter' | 'burger' | 'fries' | 'cola' | 'ice' | 'mine' | 'flame' | 'coffee' | 'desperate' | 'heal' | 'shield';
 export const weaponNames: Record<WeaponType, string> = { starter: '后置散弹炮', burger: '汉堡炮台', fries: '薯条散射枪', cola: '可乐喷泉', ice: '冰冻射线', mine: '鸡块地雷', flame: '辣椒喷射器', coffee: '咖啡涡轮', desperate: '绝境提速', heal: '回复光环', shield: '甜筒护盾' };
 export function mapProductToWeapon(p: Product): WeaponType {
@@ -21,19 +22,66 @@ export const stats = {
   mine: { damage: [50, 75, 100], interval: [3, 2.5, 2], range: [40, 60, 80], count: [1, 1, 2] },
   flame: { damage: [8, 12, 18], interval: [.25, .25, .25], range: [80, 120, 160], count: [0, 0, 0] },
 } as const;
-export function weaponDescription(type: WeaponType, level: number): string {
+export interface StatLine { icon: StatIcon; text: string }
+const line = (icon: StatIcon, text: string): StatLine => ({ icon, text });
+/** One segment per effect so the shop can render each with its own small icon. */
+export function weaponStats(type: WeaponType, level: number): StatLine[] {
   const l = level - 1;
   switch (type) {
-    case 'burger': return `${stats.burger.damage[l]} 伤害 · ${stats.burger.interval[l]}s/发 · 前向${level === 1 ? '单发' : `穿透 ${level} 敌人`}${level === 3 ? ' · 弹丸增大 50%' : ''}`;
-    case 'fries': return `${stats.fries.count[l]} 根 × ${stats.fries.damage[l]} · ${[45,60,75][l]}°扇形${level > 1 ? ` · 减速 ${level === 2 ? 20 : 30}%` : ''}${level === 3 ? ' · 穿透' : ''}`;
-    case 'cola': return `${stats.cola.damage[l]}/tick · ${stats.cola.range[l]}px 环形击退减速${level > 1 ? ' · 敌人碰撞伤害' : ''}${level === 3 ? ' · 气泡爆炸' : ''}`;
-    case 'ice': return `${stats.ice.damage[l]}/tick · ${stats.ice.range[l]}px · ${level === 3 ? '冻结 2s / 撞碎冰爆' : `减速 ${level === 1 ? 50 : 70}% 3s`}`;
-    case 'mine': return `${stats.mine.damage[l]} 爆炸伤害 · ${stats.mine.range[l]}px${level > 1 ? ` · 减速区 ${level}s` : ''}${level === 3 ? ' · 双地雷' : ''}`;
-    case 'flame': return `${stats.flame.damage[l]}/tick · 后方 ${level === 3 ? 160 : 120}° · ${stats.flame.range[l]}px${level > 1 ? ` · 灼烧 ${level === 3 ? 3 : 2}s` : ''}`;
-    case 'coffee': return `最高速度 +${level * 5}%${level > 1 ? ` · 蓄力 +${level === 2 ? 20 : 30}%` : ''}${level === 3 ? ' · 氮气 +1/s' : ''}`;
-    case 'desperate': return `车况 <${[30,40,50][l]}% 时速度 +${[10,15,20][l]}% · 损耗 +${[15,10,5][l]}%`;
-    case 'heal': return `车况 +${[2,3,5][l]}/${[10,8,6][l]}s${level > 1 ? ` · 击杀 +${level - 1}` : ''}${level === 3 ? ' · 扩大磁吸' : ''}`;
-    case 'shield': return `无碰撞 ${[15,12,10][l]}s 获得护盾 · 上限 ${level === 3 ? 2 : 1} 层${level > 1 ? ' · 反伤' : ''}`;
-    default: return '自动索敌追兵 · 三发散弹';
+    case 'burger': return [
+      line('burst', `${stats.burger.damage[l]} 伤害`),
+      line('clock', `${stats.burger.interval[l]}s/发`),
+      level === 1 ? line('pierce', '前向单发') : line('pierce', `穿透 ${level} 敌`),
+      ...(level === 3 ? [line('up', '弹丸 +50%')] : []),
+    ];
+    case 'fries': return [
+      line('burst', `${stats.fries.count[l]} 根 × ${stats.fries.damage[l]}`),
+      line('fan', `${[45, 60, 75][l]}° 扇形`),
+      ...(level > 1 ? [line('snow', `减速 ${level === 2 ? 20 : 30}%`)] : []),
+      ...(level === 3 ? [line('pierce', '穿透')] : []),
+    ];
+    case 'cola': return [
+      line('burst', `${stats.cola.damage[l]}/tick`),
+      line('snow', `${stats.cola.range[l]}px 击退减速`),
+      ...(level > 1 ? [line('up', '碰撞伤害')] : []),
+      ...(level === 3 ? [line('boom', '气泡爆炸')] : []),
+    ];
+    case 'ice': return [
+      line('burst', `${stats.ice.damage[l]}/tick`),
+      level === 3 ? line('snow', '冻结 2s · 冰爆') : line('snow', `减速 ${level === 1 ? 50 : 70}% 3s`),
+      line('pierce', `${stats.ice.range[l]}px`),
+    ];
+    case 'mine': return [
+      line('boom', `${stats.mine.damage[l]} 爆炸`),
+      line('pierce', `${stats.mine.range[l]}px`),
+      ...(level > 1 ? [line('snow', `减速区 ${level}s`)] : []),
+      ...(level === 3 ? [line('up', '双地雷')] : []),
+    ];
+    case 'flame': return [
+      line('flame', `${stats.flame.damage[l]}/tick`),
+      line('fan', `后方 ${level === 3 ? 160 : 120}°`),
+      line('pierce', `${stats.flame.range[l]}px`),
+      ...(level > 1 ? [line('clock', `灼烧 ${level === 3 ? 3 : 2}s`)] : []),
+    ];
+    case 'coffee': return [
+      line('gauge', `最高速度 +${level * 5}%`),
+      ...(level > 1 ? [line('bolt', `蓄力 +${level === 2 ? 20 : 30}%`)] : []),
+      ...(level === 3 ? [line('bolt', '氮气 +1/s')] : []),
+    ];
+    case 'desperate': return [
+      line('gauge', `车况 <${[30, 40, 50][l]}% · 速度 +${[10, 15, 20][l]}%`),
+      line('drain', `损耗 +${[15, 10, 5][l]}%`),
+    ];
+    case 'heal': return [
+      line('heart', `车况 +${[2, 3, 5][l]}/${[10, 8, 6][l]}s`),
+      ...(level > 1 ? [line('up', `击杀 +${level - 1}`)] : []),
+      ...(level === 3 ? [line('magnet', '扩大磁吸')] : []),
+    ];
+    case 'shield': return [
+      line('shield', `无碰撞 ${[15, 12, 10][l]}s 得盾`),
+      line('up', `上限 ${level === 3 ? 2 : 1} 层`),
+      ...(level > 1 ? [line('burst', '反伤')] : []),
+    ];
+    default: return [line('burst', '自动索敌 · 三发散弹')];
   }
 }
