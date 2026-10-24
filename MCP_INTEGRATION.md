@@ -17,13 +17,13 @@
 前端游戏 (Vite: 5173)
     │  fetch('/api/snapshot?city=上海')   ← 前端唯一数据入口
     ↓
-只读网关 (Fastify: 3002, server/index.ts + server/mcp.ts)
+只读网关 (Hono: 3002, server/index.ts + server/app.ts)
     │  MCP SDK + Bearer Token，严格 6 工具白名单
     ↓
 麦当劳官方 MCP (https://mcp.mcd.cn)
 ```
 
-线上（Vercel）：`api/index.ts` → `server/serverless.ts`，与本地 Fastify 网关同语义的轻量入口，共享 `server/mcp.ts` 管线。
+本地与线上共用同一个 Hono 网关（`server/app.ts`）：本地由 `@hono/node-server` 常驻 3002 端口，线上以 Web 标准 `Request → Response` 形式直接运行 `app.fetch`（`api/index.ts`，零适配器），两端共享 `server/mcp.ts` 管线。
 
 前端没有任何直连 MCP 或调用任意工具的通道；网关对所有非白名单调用直接抛错阻断。
 

@@ -1,19 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createApp } from '../server/app';
-import { allowedTools, buildSnapshot, type McpCall } from '../server/mcp';
+import { createApp } from '../server/app.js';
+import { allowedTools, buildSnapshot, type McpCall } from '../server/mcp.js';
 
 test('gateway exposes demo without credentials, validation and no arbitrary MCP passthrough', async () => {
   const app = createApp();
-  try {
-    assert.equal((await app.inject('/api/health')).json().ok, true);
-    assert.equal((await app.inject('/api/status')).json().configured, false);
-    assert.equal((await app.inject('/api/snapshot')).json().mode, 'demo');
-    assert.equal((await app.inject('/api/snapshot?city=')).statusCode, 400);
-    assert.equal((await app.inject({ method: 'POST', url: '/api/mcp' })).statusCode, 404);
-    for (let i = 0; i < 30; i++) await app.inject('/api/health');
-    assert.equal((await app.inject('/api/health')).statusCode, 429);
-  } finally { await app.close(); }
+  const health = await app.request('/api/health');
+  assert.equal(health.status, 200); assert.equal((await health.json()).ok, true);
+  assert.equal((await (await app.request('/api/status')).json()).configured, false);
+  assert.equal((await (await app.request('/api/snapshot')).json()).mode, 'demo');
+  assert.equal((await app.request('/api/snapshot?city=')).status, 400);
+  assert.equal((await app.request('/api/mcp', { method: 'POST' })).status, 404);
+  for (let i = 0; i < 30; i++) await app.request('/api/health');
+  assert.equal((await app.request('/api/health')).status, 429);
 });
 const seen: string[] = [];
 const call: McpCall = async (name, args) => {
@@ -40,13 +39,12 @@ test('reused MCP pipeline filters combos, quotes integer cents, labels closed me
 test('snapshot requests coalesce/cache, upstream errors remain explicit and endpoint rate limits', async () => {
   let nearby = 0;
   const app = createApp('', async (name,args) => { if (name === 'query-nearby-stores') nearby++; return call(name,args); });
-  try {
-    const results = await Promise.all([app.inject('/api/snapshot'), app.inject('/api/snapshot')]);
-    assert.ok(results.every(r => r.statusCode === 200)); assert.equal(nearby, 1);
-    await app.inject('/api/snapshot'); assert.equal(nearby, 1);
-    for (let i = 0; i < 4; i++) await app.inject('/api/snapshot');
-    assert.equal((await app.inject('/api/snapshot')).statusCode, 429);
-  } finally { await app.close(); }
+  const results = await Promise.all([app.request('/api/snapshot'), app.request('/api/snapshot')]);
+  assert.ok(results.every(r => r.status === 200)); assert.equal(nearby, 1);
+  await app.request('/api/snapshot'); assert.equal(nearby, 1);
+  for (let i = 0; i < 4; i++) await app.request('/api/snapshot');
+  assert.equal((await app.request('/api/snapshot')).status, 429);
   const broken = createApp('', async () => { throw new Error('Token SECRET'); });
-  try { const r = await broken.inject('/api/snapshot'); assert.equal(r.statusCode, 502); assert.ok(!r.body.includes('SECRET')); } finally { await broken.close(); }
+  const failed = await broken.request('/api/snapshot?city=上海');
+  assert.equal(failed.status, 502); assert.ok(!(await failed.text()).includes('SECRET'));
 });

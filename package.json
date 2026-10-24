@@ -12,9 +12,9 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@fastify/rate-limit": "^10.3.0",
+    "@hono/node-server": "^2.1.5",
     "@modelcontextprotocol/sdk": "^1.32.2",
-    "fastify": "^5.6.0",
+    "hono": "^4.13.13",
     "phaser": "^3.90.0",
     "zod": "^4.1.0"
   },
