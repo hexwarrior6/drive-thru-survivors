@@ -95,6 +95,32 @@ test('waves separately spawn forward hazards and rear pursuit packs', () => {
   const obstacles = c.enemies.items.filter(e => e.active && e.kind !== 2);
   assert.ok(obstacles.length > 0); assert.ok(obstacles.every(e => e.x >= -138 && e.x <= 138));
 });
+test('riders chase the car itself: braking slows them and they never overtake forward', () => {
+  const c = new CombatSystem(silent), p = new DriftPhysics(); c.starterEnabled = false;
+  const rider = c.spawn(2, 0, p.progress - 200)!;
+  for (let i = 0; i < 180; i++) { p.previousProgress = p.progress; p.progress += 340 * FIXED_DT; p.vy = -340; p.speed = 340; c.step(p, FIXED_DT); }
+  assert.ok(rider.active); assert.ok(rider.z > p.progress - 160);
+  for (let i = 0; i < 120; i++) { p.previousProgress = p.progress; p.vy = 0; p.speed = 0; c.step(p, FIXED_DT); }
+  assert.ok(rider.active);
+  assert.ok(rider.z <= p.progress && p.progress - rider.z <= 160, 'rider stays on the tail, never ahead');
+});
+test('the pit call breaks off the chase: riders turn tail and ride off the screen', () => {
+  const c = new CombatSystem(silent), p = new DriftPhysics(); p.vy = -340; p.speed = 340; c.starterEnabled = false;
+  const rider = c.spawn(2, 0, p.progress - 80)!;
+  c.entering = true;
+  for (let i = 0; i < 60; i++) { p.previousProgress = p.progress; c.step(p, FIXED_DT); }
+  assert.ok(rider.active); assert.ok(rider.z < p.progress - 80);
+  for (let i = 0; i < 240 && rider.active; i++) { p.previousProgress = p.progress; c.step(p, FIXED_DT); }
+  assert.equal(rider.active, false);
+});
+test('a published station keeps its drive-thru channel clear of new hazards', () => {
+  const c = new CombatSystem(silent), w = new WaveSystem(), p = new DriftPhysics(); p.vy = -BASE_SPEED; p.speed = BASE_SPEED;
+  for (let i = 0; i < 2699 && w.state === 'combat'; i++) { p.previousProgress = p.progress; p.progress += BASE_SPEED * FIXED_DT; w.step(p, c, FIXED_DT); }
+  w.step(p, c, FIXED_DT);
+  assert.equal(w.state, 'entering');
+  const hazards = c.enemies.items.filter(e => e.active && e.kind !== 2);
+  assert.ok(hazards.length > 0); assert.ok(hazards.every(e => e.z <= w.pitProgress - 449));
+});
 test('swept bullet hits once at high speed, flashes, shows cached damage and kills into coin pool', () => {
   let explosions = 0;
   const c = new CombatSystem({ explode() { explosions++; } }), p = new DriftPhysics();
@@ -149,11 +175,11 @@ test('pool exhaustion never grows storage, pickup overflow preserves drop value'
   for (let i = 0; i < 130; i++) c.spawn(0, 0, 500);
   assert.equal(c.enemies.items.length, 128); assert.equal(c.enemies.activeCount, 128); assert.equal(c.enemies.dropped, 2);
 });
-test('45-second wave freezes combat, eases into pit, grants reward once, next waves cap at 60s', () => {
+test('45-second wave keeps hazards alive into the pit approach, grants reward once, next waves cap at 60s', () => {
   const c = new CombatSystem(silent), w = new WaveSystem(), p = new DriftPhysics(); p.speed = BASE_SPEED;
   for (let i = 0; i < 2699; i++) w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'combat'); w.step(p, c, FIXED_DT);
-  assert.equal(w.state, 'entering'); assert.equal(c.enemies.activeCount, 0); assert.equal(c.money, 9);
+  assert.equal(w.state, 'entering'); assert.ok(c.enemies.activeCount > 0); assert.equal(c.entering, true); assert.equal(c.money, 9);
   const start = p.progress;
   const approachSeconds = Math.max(PIT_ENTRY_SECONDS, 2 * (w.pitProgress - start) / BASE_SPEED);
   for (let i = 0; i < Math.ceil(approachSeconds / FIXED_DT) + 2; i++) w.step(p, c, FIXED_DT);

@@ -40,7 +40,9 @@ export class CombatView {
       this.place(image, e.px + (e.x - e.px) * alpha, e.pz + (e.z - e.pz) * alpha, 1);
       if (image.visible) this.visibleEnemies++;
       image.setTint(e.slowTime > 0 ? 0x80c6c3 : e.kind === 3 ? 0xffffff : campaignTint);
-      image.setRotation(e.kind === 1 ? Math.sign(e.vx) * 0.22 : e.kind === 2 ? (e.x - e.px) * 0.08 : 0);
+      // Riders breaking off the chase turn their bike around and ride down-screen.
+      image.setRotation(e.kind === 1 ? Math.sign(e.vx) * 0.22
+        : e.kind === 2 ? (e.x - e.px) * 0.08 + (m.entering && e.vz < -30 ? Math.PI : 0) : 0);
       if (i < this.hats.length) {
         const hat = this.hats[i];
         if (e.kind === 2 && image.visible) {

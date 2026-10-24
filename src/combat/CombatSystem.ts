@@ -16,10 +16,12 @@ const COMBO_BONUS = [0, 1, 2, 4, 6, 10] as const;
 /** Coin value per kind: cones 1, carts 2, riders 2, tyrant 4. Riders are the volume farm. */
 const COIN_VALUE = [1, 2, 2, 4] as const;
 const GRID_COLUMNS = 10, GRID_ROWS = 36, CELL = 80, GRID_MIN_X = -400;
+/** Riders tail the car from this distance behind its center, just outside the near-miss alarm. */
+const RIDER_GAP = 100;
 export interface Enemy {
   active: boolean; slot: number; kind: number; x: number; z: number; px: number; pz: number;
   hp: number; flash: number; contact: number; vx: number; vz: number; slow: number; slowTime: number; burn: number; burnDamage: number; frozen: boolean;
-  /** Boss state machine: 0 cruise, 1 telegraph, 2 slam dash, 3 recover. */
+  /** Boss state machine: 0 cruise, 1 telegraph, 2 slam dash, 3 recover. Riders reuse it: 0 hover, 1 lunge, 2 recover. */
   phase: number; timer: number; tx: number; throwCd: number;
 }
 export interface Bullet {
@@ -62,6 +64,8 @@ export class CombatSystem {
   comboTimer = 0;
   maxCombo = 0;
   comboTier = 0;
+  /** Guided pit-entry mode: riders break off the chase and hazards cannot hurt the car. */
+  entering = false;
   bossSlot = -1;
   bossMaxHp = 0;
   bossDefeated = false;
@@ -89,6 +93,9 @@ export class CombatSystem {
     e.slow = 1; e.slowTime = e.burn = e.burnDamage = 0; e.frozen = false;
     e.hp = kind === 3 ? Math.round(BOSS_HP * this.bossHpScale) : Math.round(ENEMY_HP[kind] * this.hpScale);
     e.flash = e.contact = 0; e.phase = 0; e.timer = 0; e.tx = 0; e.throwCd = 2.4;
+    // Riders line up behind the car briefly before their first lunge; a lone rider
+    // usually dies to return fire first, packs are what get through.
+    if (kind === 2) e.timer = 1.6 + Math.random() * 1.0;
     e.vx = kind === 1 ? (x < 0 ? 95 : -95) : 0;
     e.vz = kind === 2 ? BASE_SPEED * 1.16 : 0;
     if (kind === 3) { this.bossSlot = e.slot; this.bossMaxHp = e.hp; }
@@ -176,8 +183,25 @@ export class CombatSystem {
       if (e.kind === 1) { e.x += e.vx * dt * e.slow; if (e.x < -139 || e.x > 139) e.vx = e.x < 0 ? 95 : -95; }
       if (e.kind === 2) {
         // Delayed lateral pursuit rewards sudden lane changes. Nitro genuinely opens a gap:
-        // riders have an absolute speed and never rubber-band up to boosted player speed.
+        // riders cap at an absolute pace and never rubber-band up to boosted player speed.
         e.vx += (Math.max(-70, Math.min(70, (carX - e.x) * 1.3)) - e.vx) * Math.min(1, dt * 3);
+        if (this.entering) {
+          // Pit call: the chase is off — riders brake, turn around and ride off-screen.
+          e.vx *= Math.pow(0.05, dt);
+          e.vz += (-BASE_SPEED * 0.85 - e.vz) * Math.min(1, dt * 2.2);
+        } else {
+          // Riders chase the car itself: braking slows them with it and they never
+          // overtake forward. Each rider lines up off the bumper, then lunges at it.
+          e.timer -= dt;
+          const target = e.phase === 1 ? p.progress - 30 : p.progress - RIDER_GAP;
+          const closing = Math.max(-150, Math.min(e.phase === 1 ? 260 : 85, (target - e.z) * (e.phase === 1 ? 2.2 : 0.9)));
+          e.vz += (Math.max(0, -p.vy) + closing - e.vz) * Math.min(1, dt * 3);
+          const cap = e.phase === 1 ? BASE_SPEED * 1.38 : BASE_SPEED * 1.16;
+          if (e.vz > cap) e.vz = cap;
+          if (e.phase === 0) { if (e.timer <= 0) { e.phase = 1; e.timer = 0.8; } }
+          else if (e.phase === 1) { if (e.timer <= 0 || e.z >= target) { e.phase = 2; e.timer = 0.6 + Math.random() * 0.5; } }
+          else if (e.timer <= 0) { e.phase = 0; e.timer = 0.7 + Math.random() * 0.7; }
+        }
         e.x += e.vx * dt * e.slow; e.z += e.vz * dt * e.slow;
       }
       if (e.kind === 3) {
@@ -226,7 +250,8 @@ export class CombatSystem {
           const frozen = e.frozen && e.slow === 0;
           this.hit(e, this.lastRamDamage * (frozen ? 2 : 1));
           if (frozen && !e.active) this.iceBurst(e); this.impact = 1;
-          if (this.invincible === 0 && p.pulseTime === 0 && p.nitroTime === 0) {
+          // Guided pit entry plows through leftover hazards on rails without hurting the car.
+          if (this.invincible === 0 && p.pulseTime === 0 && p.nitroTime === 0 && !this.entering) {
             this.hurt(e.kind === 0 ? 5 : e.kind === 3 ? 14 : 9, e);
           }
           if (e.active) {

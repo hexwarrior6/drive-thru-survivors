@@ -98,7 +98,8 @@ export class WaveSystem {
       // rather than dragging the station back or racing the car forward in a fixed duration.
       this.entryDuration = Math.max(PIT_ENTRY_SECONDS,
         2 * (this.endProgress - this.entryProgress) / Math.max(BASE_SPEED, -p.vy), this.remaining);
-      this.transition = 0; combat.money += 8 + this.number; combat.clear(); return;
+      // The road stays alive into the pit call: hazards remain, riders break off.
+      this.transition = 0; combat.money += 8 + this.number; combat.entering = true; return;
     }
     this.spawnTime -= dt;
     if (this.spawnTime <= 0) {
@@ -106,7 +107,10 @@ export class WaveSystem {
       this.spawnTime += Math.max(0.75, 1.3 - this.number * 0.05);
       const index = this.spawned++, kind = index % 4 === 3 ? 1 : 0;
       const x = kind === 1 ? (Math.floor(index / 4) % 2 === 0 ? -138 : 138) : ((index * 2) % 3 - 1) * 96;
-      combat.spawn(kind, x, p.progress + 680);
+      const z = p.progress + 680;
+      // Once the station is published its drive-thru channel stays clear: the car
+      // sweeps that lane on rails, so hazards may never land inside the approach.
+      if (!this.approachScheduled || z <= this.pitProgress - 450) combat.spawn(kind, x, z);
     }
     this.pursuitTime -= dt;
     if (this.pursuitTime <= 0) {
@@ -156,6 +160,7 @@ export class WaveSystem {
     combat.hpScale = 1 + (this.number - 1) * 0.12;
     this.remaining = this.duration; this.state = 'exiting'; this.spawnTime = 0.4; this.pursuitTime = 2.5;
     this.approachScheduled = false; this.transition = 0; this.bossSpawned = false;
+    combat.entering = false;
     // Keep the station we just left: the exit merge runs past its divider end.
     if (!Number.isFinite(this.pitProgress)) this.pitProgress = p.progress;
     this.entryX = p.x; this.entryProgress = p.progress; this.endProgress = p.progress + PIT_EXIT_DISTANCE;

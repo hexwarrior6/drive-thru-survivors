@@ -319,6 +319,11 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const before = this.wave.state;
+    if (this.wave.state === 'entering' || this.wave.state === 'exiting' || this.wave.state === 'pit') {
+      // Guided pit driving keeps the world alive: riders break off, road hazards stay
+      // on the tarmac and loose coins still find their way to the car.
+      this.combat.step(p, FIXED_DT);
+    }
     if (!this.stress) this.wave.step(p, this.combat, FIXED_DT);
     if (before !== this.wave.state) {
       this.hud.update(p, 0);
