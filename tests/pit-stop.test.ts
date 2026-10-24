@@ -68,3 +68,31 @@ test('the original third lane becomes the pit lane without adding road width', (
   assert.equal(pitDividerVisible(NaN), false);
   assert.equal(pitLaneCenter(420), 104);
 });
+
+test('a visible station never relocates when approach speed changes, including entry from the left lane', () => {
+  for (const [initialSpeed, approachSpeed] of [[340, 65], [65, 510], [340, 340]]) {
+    for (const x of [108, 225, 342]) {
+      const wave = new WaveSystem(), p = new DriftPhysics(), combat = new CombatSystem(silent);
+      p.x = x; p.speed = initialSpeed; p.vy = -initialSpeed; wave.remaining = 3;
+      wave.step(p, combat, FIXED_DT);
+      const station = wave.pitProgress;
+      let crossed = false;
+      for (let frame = 0; frame < 1800 && wave.state !== 'pit'; frame++) {
+        const before = p.progress;
+        if (wave.state === 'combat') {
+          p.previousProgress = p.progress; p.progress += approachSpeed * FIXED_DT;
+          p.speed = approachSpeed; p.vy = -approachSpeed;
+        }
+        wave.step(p, combat, FIXED_DT);
+        assert.equal(wave.pitProgress, station, 'announced station must stay fixed through handover and parking');
+        assert.ok(p.progress >= before && p.progress <= station, 'car advances to the fixed station without reversing or overshooting');
+        assert.ok(p.progress - before <= 12, 'approach must not teleport the car to compensate');
+        if (pitDividerVisible(p.progress - station)) {
+          crossed = true; assert.ok(p.x - 225 - 18 > PIT_DIVIDER_SIDE + 5);
+        }
+      }
+      assert.ok(crossed); assert.equal(wave.state, 'pit'); assert.equal(wave.remaining, 0);
+      assert.equal(p.x, PIT_PLAYER_X); assert.equal(p.progress, station);
+    }
+  }
+});

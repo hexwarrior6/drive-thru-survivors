@@ -1,3 +1,4 @@
+import { BASE_SPEED } from '../config';
 import { PIT_CAMERA_SIDE, PIT_ENTRY_SECONDS, PIT_EXIT_SECONDS, PIT_EXIT_DISTANCE, pitLaneCenter, smoothPit } from './PitStopLayout';
 import type { DriftPhysics } from './DriftPhysics';
 import type { CombatSystem } from '../combat/CombatSystem';
@@ -17,25 +18,31 @@ export class WaveSystem {
   pitProgress = NaN;
   cameraSide = 0;
   private approachScheduled = false;
+  private entryDuration = PIT_ENTRY_SECONDS;
   private entryProgress = 0;
   private endProgress = 0;
   step(p: DriftPhysics, combat: CombatSystem, dt: number): void {
     if (this.state === 'entering' || this.state === 'exiting') {
+      if (this.state === 'entering') this.remaining = Math.max(0, this.remaining - dt);
       this.drivePit(p, dt, this.state === 'exiting'); return;
     }
     if (this.state !== 'combat') return;
     this.remaining = Math.max(0, this.remaining - dt);
-    if (this.remaining < 0.00001) {
-      this.remaining = 0; this.state = 'entering'; this.entryX = p.x;
-      this.entryProgress = p.progress;
-      this.pitProgress = Number.isFinite(this.pitProgress) && this.approachScheduled
-        ? Math.max(p.progress + 480, Math.min(p.progress + 600, this.pitProgress)) : p.progress + 480;
-      this.endProgress = this.pitProgress;
-      this.transition = 0; combat.money += 10 + this.number * 2; combat.clear(); return;
-    }
     if (this.remaining <= 3 && !this.approachScheduled) {
-      this.pitProgress = p.progress + p.speed * this.remaining + 480;
+      // Publish this location once. Braking, drifting or boosting must never move visible scenery.
+      this.pitProgress = p.progress + Math.max(BASE_SPEED, p.speed) * this.remaining + 480;
       this.approachScheduled = true;
+    }
+    if (this.remaining < 0.00001 || (this.approachScheduled && this.pitProgress - p.progress <= 480)) {
+      if (this.remaining < 0.00001) this.remaining = 0;
+      this.state = 'entering'; this.entryX = p.x; this.entryProgress = p.progress;
+      if (!this.approachScheduled) this.pitProgress = p.progress + 480;
+      this.endProgress = this.pitProgress;
+      // A slow car can still be far from the published station. Extend its approach,
+      // rather than dragging the station back or racing the car forward in a fixed duration.
+      this.entryDuration = Math.max(PIT_ENTRY_SECONDS,
+        2 * (this.endProgress - this.entryProgress) / Math.max(BASE_SPEED, -p.vy), this.remaining);
+      this.transition = 0; combat.money += 10 + this.number * 2; combat.clear(); return;
     }
     this.spawnTime -= dt;
     if (this.spawnTime <= 0) {
@@ -60,7 +67,7 @@ export class WaveSystem {
 
   private drivePit(p: DriftPhysics, dt: number, leaving: boolean): void {
     p.previousX = p.x; p.previousProgress = p.progress; p.previousHeading = p.heading;
-    const duration = leaving ? PIT_EXIT_SECONDS : PIT_ENTRY_SECONDS;
+    const duration = leaving ? PIT_EXIT_SECONDS : this.entryDuration;
     this.transition = Math.min(duration, this.transition + dt);
     if (duration - this.transition < 0.000001) this.transition = duration;
     const t = this.transition / duration;

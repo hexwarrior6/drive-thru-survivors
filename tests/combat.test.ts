@@ -155,7 +155,8 @@ test('45-second wave freezes combat, eases into pit, grants reward once, next wa
   assert.equal(w.state, 'combat'); w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'entering'); assert.equal(c.enemies.activeCount, 0); assert.equal(c.money, 12);
   const start = p.progress;
-  for (let i = 0; i < Math.ceil(PIT_ENTRY_SECONDS * 60) + 2; i++) w.step(p, c, FIXED_DT);
+  const approachSeconds = Math.max(PIT_ENTRY_SECONDS, 2 * (w.pitProgress - start) / BASE_SPEED);
+  for (let i = 0; i < Math.ceil(approachSeconds / FIXED_DT) + 2; i++) w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'pit'); assert.equal(p.x, PIT_PLAYER_X); assert.equal(p.speed, 0); assert.ok(p.progress > start);
   for (let i = 0; i < 90; i++) w.step(p, c, FIXED_DT);
   assert.equal(c.money, 12); w.next(c, p); assert.equal(w.remaining, 48);
