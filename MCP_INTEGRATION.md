@@ -23,6 +23,8 @@
 麦当劳官方 MCP (https://mcp.mcd.cn)
 ```
 
+线上（Vercel）：`api/index.ts` → `server/serverless.ts`，与本地 Fastify 网关同语义的轻量入口，共享 `server/mcp.ts` 管线。
+
 前端没有任何直连 MCP 或调用任意工具的通道；网关对所有非白名单调用直接抛错阻断。
 
 ## 三、实际调用的工具（6 个，全部只读）

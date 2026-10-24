@@ -1,18 +1,15 @@
-/** Vercel glue: dispatch serverless requests into the Fastify gateway (server/app.ts). */
+/** Vercel glue: adapt serverless requests to the Fastify-free gateway core (server/serverless.ts). */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createApp } from '../server/app.js';
+import { createServerless } from '../server/serverless.js';
 
-const app = createApp(process.env.MCDONALDS_MCP_TOKEN ?? '');
-
-const HOP_BY_HOP = new Set(['connection', 'keep-alive', 'transfer-encoding', 'upgrade']);
+const handle = createServerless(process.env.MCDONALDS_MCP_TOKEN ?? '');
 
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  await app.ready();
-  const result = await app.inject({ method: (req.method ?? 'GET').toUpperCase(), url: req.url ?? '/', headers: req.headers });
-  res.statusCode = result.statusCode;
-  for (const [name, value] of Object.entries(result.headers)) {
-    if (value === undefined || HOP_BY_HOP.has(name.toLowerCase())) continue;
-    res.setHeader(name, value as string | number | string[]);
-  }
-  res.end(result.rawPayload);
+  const isGet = (req.method ?? 'GET').toUpperCase() === 'GET';
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const { status, body } = isGet ? await handle(url.pathname, url.searchParams) : { status: 404, body: { error: 'Not Found' } };
+  res.statusCode = status;
+  res.setHeader('content-type', 'application/json; charset=utf-8');
+  res.setHeader('cache-control', 'no-store');
+  res.end(JSON.stringify(body));
 }
