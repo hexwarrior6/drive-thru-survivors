@@ -5,23 +5,11 @@ import { clamp } from '../utils/math';
 const mobileQuery = '(max-width: 700px)';
 let carY = CAR_Y;
 
-/** Move the existing controls, preserving state and event listeners across resize. */
+/** Keep the playable world fitted to the HUD and the available viewport. */
 export function installRaceLayout(game: Phaser.Game): () => void {
   const mobile = matchMedia(mobileQuery);
   const stage = document.getElementById('stage')!;
-  const driveUI = document.getElementById('drive-ui')!;
-  const charge = document.querySelector<HTMLElement>('.charge-card')!;
-  const cruise = document.querySelector<HTMLElement>('.cruise')!;
-  const telemetry = document.getElementById('desktop-telemetry')!;
-  const settings = document.getElementById('desktop-settings')!;
   const sync = () => {
-    if (mobile.matches) {
-      driveUI.prepend(charge);
-      charge.append(cruise);
-    } else {
-      telemetry.append(charge);
-      settings.append(cruise);
-    }
     // FIT still controls scaling. The world ratio floats between fixed bounds and
     // letterboxes beyond them, so extreme screens never stretch the playable view.
     const ratio = clamp(stage.clientHeight / Math.max(1, stage.clientWidth), MIN_VIEW_RATIO, MAX_VIEW_RATIO);

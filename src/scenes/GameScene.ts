@@ -66,6 +66,7 @@ export class GameScene extends Phaser.Scene {
     this.stressReadout.textContent = 'STRESS · 预热中';
     document.getElementById('pause')!.setAttribute('aria-label', '暂停游戏');
     document.getElementById('pause')!.setAttribute('aria-pressed', 'false');
+    document.querySelector('#pause .control-label')!.textContent = '暂停';
     document.querySelector('.hud-actions')!.append(this.soundButton);
     this.stressReadout.classList.toggle('hidden', !this.stress);
     document.body.classList.add('is-driving');
@@ -128,7 +129,10 @@ export class GameScene extends Phaser.Scene {
     this.events.once('shutdown', () => { this.abort.abort(); this.inputControls.destroy(); this.audio.destroy(); });
   }
   private updateDestination(wave = this.wave.number): void {
-    document.getElementById('next-stop')!.textContent = `前方到站 · ${this.shop.destination(wave).name}`;
+    const stop = document.getElementById('next-stop')!;
+    const name = this.shop.destination(wave).name;
+    stop.textContent = `下一站 · ${name.replace(/得来速餐厅$/, '')}`;
+    stop.title = name;
   }
   private toggleMute(): void {
     this.audio.unlock(); this.audio.setMuted(!this.audio.muted);
@@ -144,6 +148,7 @@ export class GameScene extends Phaser.Scene {
     document.getElementById('drive-ui')!.classList.toggle('hidden', this.paused);
     document.getElementById('pause')!.setAttribute('aria-label', this.paused ? '继续游戏' : '暂停游戏');
     document.getElementById('pause')!.setAttribute('aria-pressed', String(this.paused));
+    document.querySelector('#pause .control-label')!.textContent = this.paused ? '继续' : '暂停';
     updateCarY(this.scale.height);
     (document.activeElement as HTMLElement)?.blur();
   }
@@ -165,7 +170,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.stress) this.wave.step(p, this.combat, FIXED_DT);
     if (before !== this.wave.state) {
       this.hud.update(p, 0);
-      if (this.wave.state === 'entering') { this.weapons.clear(); this.hud.showNotice('正在驶入 · ' + this.shop.destination(this.wave.number).name, 3); }
+      if (this.wave.state === 'entering') { this.weapons.clear(); }
       if (this.wave.state === 'pit') { this.shopView.open(this.wave.number); this.pitPanel.classList.remove('hidden'); document.body.classList.add('is-pit'); document.getElementById('drive-ui')!.classList.add('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
       this.hud.updateCombat(this.combat, this.wave);
     }
@@ -208,7 +213,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.audio.update(p.speed, p.lateralSpeed, p.drifting);
     this.hudTick += FIXED_DT;
-    if (this.hudTick >= 0.08) { this.hud.update(p, this.hudTick, this.track.route.sectionAt(p.progress).name, this.track.route.sectionAt(p.progress + 450).turn); this.hud.updateCombat(this.combat, this.wave); this.hudTick = 0; }
+    if (this.hudTick >= 0.08) { this.hud.update(p, this.hudTick); this.hud.updateCombat(this.combat, this.wave); this.hudTick = 0; }
   }
   update(_time: number, delta: number): void {
     this.player.baseY = getCarY();

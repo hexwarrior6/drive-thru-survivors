@@ -57,50 +57,6 @@ kbd{display:inline-block;min-width:32px;text-align:center;padding:7px 6px;border
 .stage{width:100%;height:var(--race-height);flex-shrink:0;position:relative;overflow:hidden;border:6px solid #fff9e8;border-radius:26px;background:#fcf3d9;box-shadow:0 0 0 1px #75432930,0 18px 38px #354e3c17}
 #game{position:absolute;inset:0}
 #game canvas{display:block!important}
-/* Instrument-cluster HUD: floating pods over the world instead of one full-width bar.
-   All cards share one token set so radius, border and shadow stay identical. */
-.hud{position:absolute;top:0;left:0;right:0;padding:10px 12px 8px;pointer-events:none;--card-bg:#fff9e8f0;--card-border:#75432926;--card-shadow:0 3px 0 #75432914;--card-radius:12px}
-.hud-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:8px}
-.micro{font-size:8px;letter-spacing:1.6px;display:block;color:#78846c;font-weight:700}
-.hud strong{font-size:28px;font-weight:850;line-height:1.1;letter-spacing:-1px;font-variant-numeric:tabular-nums}
-/* Amap-style speed pod: big number with its own gauge on a floating card. */
-.speed-readout{justify-self:start;min-width:112px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--card-radius);padding:6px 12px 8px;box-shadow:var(--card-shadow)}
-.speed-readout .micro i{font-style:normal;font-size:7px;letter-spacing:.5px;color:#a49170;margin-left:2px}
-.speed-track{height:5px;margin-top:5px;background:#354e3c1f;border-radius:9px;overflow:hidden}
-.speed-track>div{height:100%;width:0;border-radius:9px;background:linear-gradient(90deg,#8bbf57,#ffcf52 55%,#e75239);transition:width .15s}
-/* Wave clock lives inside a depleting ring on a soft disc; urgency turns it red under 10s. */
-.wave-readout{position:relative;width:54px;height:54px;justify-self:center}
-.wave-ring{position:absolute;inset:0;width:100%;height:100%}
-.wave-ring circle{fill:none;stroke-width:4}
-.wave-ring .ring-disc{fill:#fff9e8e8;stroke:none}
-.wave-ring .ring-bg{stroke:#354e3c17}
-.wave-ring .ring-fg{stroke:#b75d36;stroke-linecap:round;stroke-dasharray:119.4;transition:stroke-dashoffset .2s linear,stroke .3s}
-.hud .wave-readout strong{position:absolute;left:0;right:0;top:10px;font-size:16px;line-height:1;color:#b75d36;letter-spacing:0;text-align:center}
-.hud .wave-readout strong.as-text{font-size:9px;top:19px;letter-spacing:1px}
-.wave-caption{position:absolute;left:0;right:0;top:29px;text-align:center;font-size:6.5px;letter-spacing:1.2px;font-weight:800;color:#a49170}
-.wave-caption b{color:#78846c}
-.hud-actions{justify-self:end}
-.hud .icon-button{border-radius:var(--card-radius);box-shadow:var(--card-shadow)}
-/* One slim status chip for vitals and economy, kept off the pod's visual channel. */
-.hud-strip{margin-top:8px;background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--card-radius);padding:7px 12px 6px;box-shadow:var(--card-shadow);display:flex;flex-direction:column;gap:6px}
-.hud-meta{display:flex;align-items:center;gap:14px;margin:0;font-size:9px;color:#78846c;font-variant-numeric:tabular-nums}
-.eco{display:inline-flex;align-items:center;gap:4px;min-width:0}
-.eco svg{flex-shrink:0}
-.eco b{font-size:15px;font-weight:850;line-height:1;color:#354e3c}
-.eco-kills b{font-size:11px;font-weight:750;color:#78846c}
-.hud-meta #distance{margin-left:auto;font-size:9px}
-.hud-bars{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0}
-.health-row,.nitro-row{display:flex;align-items:center;gap:7px;font-size:9px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.health-row{color:#6b9d57}
-.nitro-row{color:#c49a3e}
-.health-row b,.nitro-row b{color:#354e3c;min-width:20px;text-align:right}
-.health-row.low{color:#e75239}
-.health-row.low b{color:#e75239}
-.nitro-track{height:6px;flex:1;min-width:12px;background:#354e3c1f;border-radius:9px;overflow:hidden}
-.nitro-track>div{height:100%;width:100%;background:#3d85c6;border-radius:9px;transition:width .1s}
-#health-fill{background:#6b9d57}
-.combat-tactic{margin-top:5px;font-size:9px;line-height:1.4;color:#3d7180;font-weight:650}
-.combat-tactic.danger{color:#bd4735}
 .title-panel,.pause-panel{position:absolute;left:22px;right:22px;top:20%;text-align:center;padding:25px 21px 23px;background:#fff9e8f5;border:1px solid #75432940;border-radius:18px;box-shadow:0 8px 0 #354e3c1c}
 .title-tag{font-size:8px;letter-spacing:2px;font-weight:800;color:#b3663d}
 .title-panel h2{font-size:34px;line-height:1.4;margin:16px 0;color:#354e3c;font-weight:900;letter-spacing:-1px}
@@ -112,32 +68,17 @@ kbd{display:inline-block;min-width:32px;text-align:center;padding:7px 6px;border
 .pause-panel{top:31%;z-index:10}
 .pause-panel h2{font-size:24px}
 .reset-button{margin-top:18px;background:none;font-size:11px}
-.drive-ui{position:absolute;bottom:0;left:0;right:0;padding:12px 13px 10px;background:linear-gradient(#fff9e800,#fff9e8 12%);padding-top:28px}
-.charge-card{padding:12px 12px 9px;background:#fff9e8;border:1px solid #75432922;border-radius:9px;margin-bottom:10px}
-.charge-head{display:flex;justify-content:space-between;gap:8px;font-size:10px;font-weight:650}
-.charge-head>b{font-size:9px;letter-spacing:1px}
-.charge-track{height:5px;background:#354e3c18;border-radius:3px;margin:10px 0 6px;position:relative}
-.charge-track>div{width:0;height:100%;background:#70cfff;border-radius:3px;transition:width .1s}
-.charge-track>i{position:absolute;left:25%;top:-2px;width:2px;height:9px;background:#fff9e8}
-.charge-track>i:last-child{left:50%}
-.charge-labels{display:flex;justify-content:space-between;font-size:8px;color:#899079}
-.controls{display:flex;gap:8px}
-.controls button{background:#f4ebd4;border:1px solid #75432935;border-bottom:3px solid #75432955;border-radius:10px;min-width:48px;min-height:52px;flex:1;font-size:23px;touch-action:none;user-select:none;-webkit-user-select:none}
-.controls .drift-button,.controls .boost-button{font-size:13px;font-weight:750;flex:1.6}
-.controls .drift-button{background:#ffcf52}
-.controls .boost-button{background:#e75239;color:#fff9e8}
-.controls small{display:block;font-size:7px;letter-spacing:1px;opacity:.65;margin-top:3px}
-.controls button.pressed{transform:translateY(2px);border-bottom-width:1px;filter:brightness(.92)}
-.cruise{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;padding:0 10px;min-height:48px;background:#fff9e8;border:1px solid #75432922;border-radius:12px;user-select:none}
-.cruise-toggle{position:relative;display:flex;align-items:center;gap:9px;min-height:48px;cursor:pointer;flex-shrink:0}
-.cruise-toggle input{position:absolute;left:0;top:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
-.cruise-check{display:grid;place-items:center;width:22px;height:22px;flex-shrink:0;border:1.5px solid #8f9b79;border-radius:7px;background:#f4ebd4;transition:background .15s,border-color .15s}
-.cruise-check svg{width:16px;height:16px;fill:none;stroke:#fff9e8;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:0}
-.cruise-toggle input:checked+.cruise-check{background:#6b8754;border-color:#6b8754}
-.cruise-toggle input:checked+.cruise-check svg{opacity:1}
-.cruise-toggle input:focus-visible+.cruise-check{outline:3px solid #3d85c6;outline-offset:3px}
-.cruise-name{font-size:11px;font-weight:650}
-.cruise-hint{font-size:9px;line-height:1.5;color:#899079;text-align:right}
+.cruise{margin:0 0 18px;border:1px solid #dfe4d7;border-radius:14px;background:#f5f6ed;user-select:none}
+.cruise-toggle{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:68px;padding:12px 14px;cursor:pointer}
+.cruise-toggle input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.cruise-copy{display:flex;flex-direction:column;gap:5px;text-align:left}
+.cruise-name{font-size:13px;font-weight:650;color:#354e3c}
+.cruise-hint{font-size:11px;line-height:1.4;color:#6b7969}
+.cruise-switch{position:relative;display:block;width:44px;height:26px;flex-shrink:0;border-radius:20px;background:#ccd4c5;transition:background .18s}
+.cruise-switch::after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:white;box-shadow:0 1px 3px #263c3226;transition:transform .18s}
+.cruise-toggle input:checked+.cruise-switch{background:#577b58}
+.cruise-toggle input:checked+.cruise-switch::after{transform:translateX(18px)}
+.cruise-toggle input:focus-visible+.cruise-switch{outline:3px solid #3d85c6;outline-offset:3px}
 .stage-bottom{padding:6px 4px 0;font-size:7px;letter-spacing:.9px;color:#92927a}
 .stage-bottom button{font-size:9px;background:none;padding:3px;color:#788368}
 .lab-label{display:flex;justify-content:space-between;border-bottom:1px solid #75432930;padding-bottom:14px;color:#8e9277;font-size:10px;letter-spacing:3px}
@@ -168,22 +109,6 @@ kbd{display:inline-block;min-width:32px;text-align:center;padding:7px 6px;border
 footer{display:none;max-width:1306px;margin:0 auto;padding:21px 8px 26px;border-top:1px solid #75432922;justify-content:space-between;color:#92967b;font-size:8px;letter-spacing:1.3px}
 footer i{font-style:normal;margin-left:20px;font-size:7px}
 .hidden{display:none!important}
-
-/* Desktop: keep the whole lower road visible; telemetry lives beside the canvas. */
-.drive-ui { display: none; }
-
-#desktop-telemetry, #desktop-settings { display: none; }
-
-.is-driving #desktop-telemetry, .is-driving #desktop-settings { display: block; }
-
-#desktop-telemetry { margin-top: 18px; }
-
-#desktop-telemetry .charge-card { margin: 0; }
-
-
-
-
-#desktop-telemetry .charge-head { font-size: 11px; }
 
 @media (max-height: 850px) and (min-width: 701px) {
   .intro h1 { font-size: 34px; margin: 16px 0; }
@@ -229,8 +154,6 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 
   .masthead #sound { position:absolute; top:calc(10px + env(safe-area-inset-top)); right:max(15px,env(safe-area-inset-right)); }
 
-
-
   .layout { display:block; padding:0; margin:0; max-width:none; width:100%; height:100%; }
 
   .intro, .details, .stage-top, .stage-bottom { display: none; }
@@ -238,27 +161,6 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
   .play-column { width:100%; height:100%; }
 
   .stage { width:100%; height:100%; border:0; border-radius:0; box-shadow:none; }
-
-  .hud { padding:calc(10px + env(safe-area-inset-top)) max(15px,env(safe-area-inset-right)) 9px max(15px,env(safe-area-inset-left)); }
-
-
-
-
-
-
-
-  .drive-ui { display:block; padding:20px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); background:linear-gradient(#fff9e800,#fff9e8e8 20%); }
-
-  .charge-card { padding:9px 12px 7px; margin-bottom:9px; background:#fff9e8e8; }
-
-  .controls { gap:10px; }
-
-  .controls button { min-height:64px; }
-
-  .controls .boost-button { min-width:64px; }
-
-
-
 
   .title-panel, .pause-panel { left:max(22px,env(safe-area-inset-left)); right:max(22px,env(safe-area-inset-right)); max-width:390px; margin-inline:auto; }
 
@@ -284,14 +186,7 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 
 @media (max-width:360px) {
 
-
-  .hud strong { font-size:24px; }
-
-  .hud .wave-readout strong { font-size:13px; top:12px; }
-
   .title-panel h2 { font-size:28px; }
-
-  .controls { gap:7px; }
 
 }
 
@@ -299,26 +194,9 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
   * { scroll-behavior:auto!important; transition:none!important; }
 
 }
-.road-readout { display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:10px; letter-spacing:1px; color:#6b795b; }
-.road-readout b { color:#b75d36; font-size:10px; }
-
-/* A single telemetry panel with a shared pause/sound toolbar. */
-.is-driving .road-readout { display:none; }
 .pit-panel p, #disabled-panel p { font-size:11px; line-height:1.8; }
 .pit-panel small { display:block; font-size:10px; margin:12px 0 22px; color:#78846c; }
 .stress-readout { position:absolute; left:10px; right:10px; top:150px; background:#263c32ed; color:#fff2cb; font:9px/1.6 monospace; padding:5px; pointer-events:none; border-radius:5px; }
-.controls .brake-button { background:#dce9ce; font-size:12px; font-weight:750; }
-
-/* Phone: share the drift card's existing height instead of adding a throttle row. */
-@media (max-width:700px) {
-  .charge-card { display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:12px; }
-  .charge-head,.charge-track,.charge-labels { grid-column:1; }
-  .charge-card .cruise { grid-column:2; grid-row:1 / span 3; align-self:stretch; margin:0; padding:0 0 0 10px; min-height:48px; border:0; border-left:1px solid #75432920; border-radius:0; background:none; }
-  .charge-card .cruise-toggle { gap:6px; }
-  .charge-card .cruise-name { font-size:10px; }
-  .charge-card .cruise-check { width:20px; height:20px; border-radius:6px; }
-  .charge-card .cruise-hint { display:none; }
-}
 
 /* Keep the world-space entry and service window visible above the stop panel. */
 .pit-panel { top:auto; bottom:18px; padding:13px 17px; }
@@ -372,9 +250,6 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 .destination-panel .primary { min-height:44px; padding:10px 14px; font-size:14px; display:block; width:100%; text-align:center; }
 .destination-panel button:disabled,.city-row input:disabled { opacity:.6; cursor:default; }
 .destination-panel #destination-status { font-size:9px; line-height:1.5; min-height:14px; margin:10px 0 0; color:#78846c; text-align:center; }
-.next-stop { width:fit-content; max-width:100%; font-size:10px; line-height:1.5; color:#754329; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-bottom:5px; padding:2px 11px; background:#fff9e8e0; border:1px solid #7543291f; border-radius:999px; box-shadow:0 2px 0 #75432910; }
-.combat-tactic { width:fit-content; max-width:100%; padding:2px 11px; background:#fff9e8e0; border:1px solid #7543291f; border-radius:999px; box-shadow:0 2px 0 #75432910; }
-.combat-tactic.danger { background:#fbe7df; border-color:#e7523940; color:#bd4735; }
 #shop-address { font-size:10px; color:#647663; }
 .product-highlight { display:block; background:#ffcf5266; border-radius:4px; color:#754329; font-size:9px; padding:3px; margin-bottom:4px; }
 #store-menu { text-align:left; margin:8px 0; border:1px solid #c8b890; padding:8px; border-radius:8px; }
@@ -382,15 +257,6 @@ footer i{font-style:normal;margin-left:20px;font-size:7px}
 #store-menu .menu-explanation { font-size:10px; color:#647663; margin-bottom:8px; }
 #menu-products { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
 .menu-card .food-art { height:35px; }
-/* Pit stop: the HUD slims down but keeps the two decision numbers — money and health —
-   repositioned into the top bar while speed, clock and nitro are irrelevant at a stop. */
-body.is-pit .speed-readout, body.is-pit .wave-readout,
-body.is-pit #next-stop, body.is-pit .combat-tactic { display:none; }
-body.is-pit .hud { display:flex; align-items:center; gap:12px; }
-body.is-pit .hud-row { display:contents; }
-body.is-pit .hud-strip { order:-1; flex:1; flex-direction:row-reverse; align-items:center; gap:14px; margin:0; }
-body.is-pit .hud-bars { flex:1; grid-template-columns:1fr; gap:0; }
-body.is-pit .nitro-row, body.is-pit .eco-kills, body.is-pit #distance { display:none; }
 /* Desktop: reclaim the HUD space and compact the panel so the shop fits without scrolling. */
 @media (min-width: 701px) {
   .pit-panel { max-height:calc(100% - 84px); padding:10px 13px; }
@@ -428,3 +294,101 @@ body.is-pit .nitro-row, body.is-pit .eco-kills, body.is-pit #distance { display:
 .city-option[aria-selected="true"] { background:#ffcf52; border-color:#c49a3e; font-weight:800; }
 #city-empty { font-size:10px; color:#78846c; line-height:1.6; margin:4px 0; }
 .city-options-panel[hidden],#city-empty[hidden] { display:none; }
+
+/* Edge sheets anchor the HUD; small contextual instruments float over the road. */
+.hud,.drive-ui{--hud-surface:#fffdf4f5;--hud-line:#354e3c18;--hud-shadow:0 4px 16px #263c3214;font-variant-numeric:tabular-nums}
+.hud{position:absolute;inset:0 0 auto;padding:0;pointer-events:none;z-index:2}
+.journey-card{position:relative;background:#fffdf4;border:0;border-bottom:1px solid #dfe4d7;border-radius:0 0 16px 16px;box-shadow:none;padding:12px 16px 14px}
+.journey-card::after{content:"";position:absolute;left:14px;right:14px;top:100%;height:8px;background:linear-gradient(#263c3214,transparent);pointer-events:none}
+.journey-main{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.journey-time{min-width:0;flex:1}
+.journey-label{display:block;font-size:12px;line-height:1.5;color:#647366}
+.journey-label b{color:#354e3c;font-weight:750}
+.journey-time>strong{display:block;font-size:32px;font-weight:800;letter-spacing:-1px;line-height:1.2}
+.journey-time>strong b{font:inherit}
+.journey-time>strong span{font-size:13px;letter-spacing:0;margin-left:5px;font-weight:500;color:#647366}
+.journey-time>strong.as-text{font-size:25px;letter-spacing:0}
+.hud-actions{position:static;display:flex;gap:0;align-items:center;flex-shrink:0;padding:3px;border:1px solid #dfe4d7;border-radius:14px;background:#f1f3e9}
+.hud .icon-button{width:44px;height:46px;flex-basis:44px;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:0;border:0;border-radius:10px;background:transparent;box-shadow:none;color:#52624b}
+.hud .icon-button svg{width:18px;height:18px;stroke-width:1.7}
+.hud .icon-button+.icon-button{position:relative;margin-left:1px}
+.hud .icon-button+.icon-button::before{content:"";position:absolute;left:-1px;top:11px;bottom:11px;width:1px;background:#d9dfd1}
+.hud .icon-button[aria-pressed="true"]{color:#354e3c;background:#e4e9da}
+.control-label{font-size:10px;line-height:1;font-weight:500}
+.masthead .control-label{display:none}
+.hud .icon-button:hover{background:#e5e9dc}
+.journey-detail{display:flex;align-items:center;gap:12px;margin-top:8px;padding:9px 0 0;border-top:1px solid var(--hud-line);font-size:12px}
+.destination{display:flex;align-items:center;gap:7px;min-width:0;flex:1}
+.destination-marker{color:#3d85c6;font-size:18px;font-weight:750;flex-shrink:0}
+#next-stop{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+.eco{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;padding-right:14px;border-right:1px solid #dfe4d7;font-size:14px;font-weight:700;color:#52624b}
+.eco svg{flex-shrink:0}
+.journey-progress-row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:11px;line-height:1.4;color:#52624b}
+.journey-progress-row>span{flex-shrink:0}
+.journey-progress{flex:1;height:7px;background:#dbe2d3;border-radius:5px;overflow:hidden}
+#wave-progress{width:100%;height:100%;background:#6b9d57;transform-origin:left;transition:transform .2s linear}
+.arriving #wave-progress{background:#3d85c6}
+.combat-tactic{position:relative;margin:20px 12px 0;padding:9px 12px;width:fit-content;max-width:calc(100% - 24px);border-radius:12px;background:#edf5ff;color:#245c8d;font-size:12px;line-height:1.45;box-shadow:var(--hud-shadow)}
+.combat-tactic[hidden]{display:none}
+.combat-tactic.danger{background:#fff0e9f5;color:#a43728;border:1px solid #e7523933}
+.pit-vitals{display:none}
+.drive-ui{position:absolute;inset:auto 0 0;z-index:2;pointer-events:none;padding:14px 16px 12px;background:#fffdf4;border:0;border-top:1px solid #dfe4d7;border-radius:16px 16px 0 0;box-shadow:none}
+.drive-ui::before{content:"";position:absolute;left:14px;right:14px;bottom:100%;height:8px;background:linear-gradient(transparent,#263c3214);pointer-events:none}
+.charge-card{position:absolute;left:12px;bottom:calc(100% + 26px);width:min(290px,calc(100% - 24px));height:50px;padding:9px 12px;background:#fffdf4;border:1px solid #d8dfd0;border-radius:12px;box-shadow:var(--hud-shadow);visibility:hidden}
+.charge-card.active{visibility:visible}
+.charge-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden}
+#drift-label{overflow:hidden;text-overflow:ellipsis}
+.charge-head b{font-size:12px;flex-shrink:0}
+.charge-track{height:7px;margin-top:7px;background:#dbe2d3;border-radius:4px;position:relative}
+.charge-track>div{height:100%;width:0;border-radius:4px}
+.charge-track>i{position:absolute;top:0;left:25%;width:2px;height:7px;background:#fffdf4}
+.charge-track>i:last-child{left:50%}
+.driving-status{display:grid;grid-template-columns:90px 1fr 1fr;align-items:center;gap:16px;padding:0 2px 12px}
+.speed-readout{display:flex;align-items:baseline;gap:4px}
+.speed-readout strong{font-size:29px;letter-spacing:-1px;line-height:1.1;font-weight:800}
+.speed-readout>span{font-size:10px;color:#647366}
+.health-row,.nitro-row{min-width:0}
+.resource-heading{display:flex;justify-content:space-between;gap:5px;font-size:12px;line-height:1.5}
+.resource-heading>span{color:#647366}
+.resource-heading>b{font-weight:750}
+.resource-track{height:8px;margin-top:5px;border-radius:5px;background:#dbe2d3;overflow:hidden}
+.resource-track>div{height:100%;width:100%;border-radius:5px;transition:width .1s}
+#health-fill{background:#6b9d57}
+#nitro-fill{background:#3d85c6}
+.health-row.low #health-fill{background:#d93025}
+.health-row.low b,.pit-vitals .low{color:#b42c23}
+.controls{display:none;gap:6px;padding-top:12px;border-top:1px solid var(--hud-line);pointer-events:auto}
+.controls button{min-width:0;min-height:64px;flex:1;padding:7px 4px;border:1px solid #d8dfd0;border-radius:12px;background:#f0f3e9;font-size:22px;font-weight:700;touch-action:none;user-select:none;-webkit-user-select:none}
+.controls small{display:block;margin-top:5px;font-size:10px;line-height:1.2;font-weight:500;opacity:.85}
+.controls .brake-button,.controls .drift-button,.controls .boost-button{font-size:14px}
+.controls .drift-button{flex:1.3;background:#ffe4a0;border-radius:16px;color:#655123}
+.controls .boost-button{flex:1.3;background:#3d85c6;border-radius:16px;color:white;box-shadow:0 3px 8px #3d85c61f}
+.controls .boost-button.boosting{background:#245c8d;opacity:1}
+.controls button.pressed{transform:translateY(1px);filter:brightness(.92)}
+.desktop-drive-hint{display:flex;justify-content:space-between;border-top:1px solid var(--hud-line);font-size:11px;padding:10px 2px 0;color:#647366}
+#pause-panel{top:50%;transform:translateY(-50%);max-height:calc(100% - 24px);overflow-y:auto}
+.pause-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:left;margin:20px 0;font-size:12px;color:#647366}
+.pause-stats b{display:block;margin-top:4px;font-size:18px;color:#354e3c;font-variant-numeric:tabular-nums}
+.pause-panel .cruise{margin:0 0 18px}
+body.is-pit .journey-time,body.is-pit .journey-progress-row{display:none}
+body.is-pit .journey-main{flex:1;justify-content:space-between}
+body.is-pit .journey-card{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:72px;padding:12px 16px;background:#fffdf4f5;border-radius:0 0 16px 16px}
+body.is-pit .pit-vitals{display:flex;order:-2;gap:8px;align-items:center;font-size:13px}
+body.is-pit .journey-detail{display:none}
+body.is-pit .destination{display:none}
+body.is-pit .hud-actions{position:static;flex-direction:row}
+body.is-pit .icon-button{box-shadow:none}
+@media(max-width:700px){
+  .journey-card{padding:calc(12px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 14px max(14px,env(safe-area-inset-left))}
+  body.is-pit .journey-card{padding:calc(12px + env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left))}
+  .drive-ui{padding:14px max(12px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+  .controls{display:flex}
+  .desktop-drive-hint{display:none}
+  .driving-status{grid-template-columns:85px 1fr 1fr;gap:14px}
+}
+@media(max-width:360px){
+  .journey-card{padding-inline:14px}
+  .driving-status{grid-template-columns:78px 1fr 1fr;gap:10px;padding-inline:2px}
+  .speed-readout strong{font-size:26px}
+  .controls{gap:6px}
+}
