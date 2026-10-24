@@ -61,7 +61,7 @@ npm run preview # 预览生产构建：http://127.0.0.1:4173/
 
 部署后的行为：
 
-- 前端静态资源与 `/api/*` 网关同域；`vercel.json` 把 `/api/*` 重写到 `api/index.ts`，以 Web 标准 `Request → Response` 形式直接运行同一个 Hono 网关（`server/app.ts`，与本地 `npm run dev:server` 完全同一套代码，共享 `server/mcp.ts` 管线，零适配器）
+- 前端静态资源与 `/api/*` 网关同域；`vercel.json` 把 `/api/*` 重写到 `api/index.ts`，以 Web 标准具名方法导出（`export const GET`）直接运行同一个 Hono 网关（`server/app.ts`，与本地 `npm run dev:server` 完全同一套代码，共享 `server/mcp.ts` 管线，零适配器；注意单参数的 default export 会被 Vercel 误判为 Node 风格签名）
 - 函数时长在 `vercel.json` 配置为 120 秒，覆盖快照构建最坏 55 秒的 MCP 管线；需保持项目开启 Fluid Compute（Vercel 新项目默认开启）
 - 冷启动后的第一次 `/api/snapshot` 要真实跑完整个 MCP 管线，可能耗时数十秒，属正常现象；同一城市 15 分钟内命中网关缓存
 - 未配置 Token 时线上同样自动降级为示例数据，并在游戏内明确标注离线示例

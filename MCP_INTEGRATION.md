@@ -23,7 +23,7 @@
 麦当劳官方 MCP (https://mcp.mcd.cn)
 ```
 
-本地与线上共用同一个 Hono 网关（`server/app.ts`）：本地由 `@hono/node-server` 常驻 3002 端口，线上以 Web 标准 `Request → Response` 形式直接运行 `app.fetch`（`api/index.ts`，零适配器），两端共享 `server/mcp.ts` 管线。
+本地与线上共用同一个 Hono 网关（`server/app.ts`）：本地由 `@hono/node-server` 常驻 3002 端口，线上以 Web 标准具名方法导出（`export const GET`）直接运行 `app.fetch`（`api/index.ts`，零适配器），两端共享 `server/mcp.ts` 管线。
 
 前端没有任何直连 MCP 或调用任意工具的通道；网关对所有非白名单调用直接抛错阻断。
 
