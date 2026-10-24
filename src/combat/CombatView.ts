@@ -64,8 +64,8 @@ export class CombatView {
       if (image.texture.key !== texture) image.setTexture(texture);
       this.place(image, b.px + (b.x - b.px) * alpha, b.pz + (b.z - b.pz) * alpha, 1);
       if (image.visible) this.visibleBullets++;
-      image.setTint(b.kind === 1 ? (b.level === 3 ? 0xffcf52 : 0xad713a) : b.kind === 2 ? 0xffcf52 : b.kind === 4 ? 0xff9d7a : 0xffffff);
-      if (b.kind === 1 && b.level === 3) image.setScale(image.scaleX * 1.5, image.scaleY * 1.5);
+      image.setTint(b.kind === 1 ? (b.level >= 3 ? 0xffcf52 : 0xad713a) : b.kind === 2 ? 0xffcf52 : b.kind === 4 ? 0xff9d7a : 0xffffff);
+      if (b.kind === 1 && b.level >= 3) image.setScale(image.scaleX * (b.level >= 5 ? 1.8 : 1.5), image.scaleY * (b.level >= 5 ? 1.8 : 1.5));
       image.setRotation(Math.atan2(b.vx, b.vz));
     }
     for (let i = 0; i < this.coins.length; i++) {

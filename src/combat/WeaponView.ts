@@ -16,15 +16,15 @@ export class WeaponView {
       if (w.type === 'cola' || w.type === 'heal' || w.type === 'shield') {
         const radius = (w.type === 'cola' ? 60 + l * 20 : 42) * scale;
         const color = w.type === 'cola' ? (l === 2 ? 0xffcf52 : 0x754329) : w.type === 'heal' ? 0xffcf52 : 0xfff9e8;
-        g.lineStyle(w.level === 3 ? 3 : 2, color, .45); g.strokeEllipse(x, y, radius * 2, radius * 1.5);
+        g.lineStyle(w.level >= 3 ? 3 : 2, color, .45); g.strokeEllipse(x, y, radius * 2, radius * 1.5);
         for (let j = 0; j < 8; j++) {
           const a = time * 2 + j * Math.PI / 4;
-          g.fillStyle(color, .55); g.fillCircle(x + Math.cos(a) * radius, y + Math.sin(a) * radius * .75, (w.level === 3 ? 5 : 3) * scale);
+          g.fillStyle(color, .55); g.fillCircle(x + Math.cos(a) * radius, y + Math.sin(a) * radius * .75, (w.level >= 3 ? 5 : 3) * scale);
         }
         if (w.type === 'shield' && this.model.combat.shields) { g.lineStyle(5, color, .85); g.strokeCircle(x, y, 38 * scale); }
       }
       if (w.type === 'flame') {
-        g.fillStyle(w.level === 3 ? 0x80c6c3 : 0xe75239, .3);
+        g.fillStyle(w.level >= 3 ? 0x80c6c3 : 0xe75239, .3);
         g.fillTriangle(x - 8, y + 18, x - (40 + l * 15) * scale, y + (80 + l * 40) * scale, x + (40 + l * 15) * scale, y + (80 + l * 40) * scale);
       }
       if (w.type === 'ice' && w.cooldown > .1) {

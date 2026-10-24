@@ -2,6 +2,7 @@ import type { CombatSystem } from '../combat/CombatSystem';
 import type { WaveSystem } from '../systems/WaveSystem';
 import type { DriftPhysics } from '../systems/DriftPhysics';
 import type { Theme } from '../systems/Theme';
+import { WAVES_PER_ROUND } from '../systems/balance';
 import { statIcon } from './icons';
 const get = (id: string) => document.getElementById(id)!;
 const labels = ['保持转向蓄力', '蓝焰就绪 · 松手加速', '橙焰就绪 · 松手加速', '紫焰全开 · 松手加速'];
@@ -16,7 +17,7 @@ export class HUD {
   private chargeCard = document.querySelector<HTMLElement>('.charge-card')!;
   private drifts = get('drift-count'); private purples = get('purple-count');
   private boostButton = document.querySelector<HTMLButtonElement>('[data-drive="boost"]')!;
-  private wave = get('wave-number'); private clock = get('wave-clock');
+  private wave = get('wave-number'); private round = get('round-number'); private clock = get('wave-clock');
   private clockValue = get('wave-clock-value'); private clockUnit = get('wave-clock-unit');
   private progress = get('wave-progress');
   private progressTrack = document.querySelector<HTMLElement>('.journey-progress')!;
@@ -25,6 +26,7 @@ export class HUD {
   private pitHealth = get('pit-health'); private healthRow = get('health-row');
   private tactic = get('combat-tactic'); private healthFill = get('health-fill');
   private bossBar = get('boss-bar'); private bossFill = get('boss-fill');
+  private bossLabel = document.querySelector<HTMLElement>('#boss-bar span')!;
   private combo = get('combo'); private comboCount = get('combo-count');
   private campaignTag = get('campaign-tag');
   private lastCombo = -1;
@@ -37,7 +39,8 @@ export class HUD {
     this.campaignTag.hidden = false;
   }
   updateCombat(c: CombatSystem, w: WaveSystem): void {
-    this.wave.textContent = String(w.number).padStart(2, '0');
+    this.round.textContent = String(w.round);
+    this.wave.textContent = String(((w.number - 1) % WAVES_PER_ROUND) + 1).padStart(2, '0');
     const clock = w.state === 'combat' ? (w.isBossWave ? 'BOSS' : String(Math.ceil(w.remaining)))
       : w.state === 'countdown' ? '准备' : w.state === 'entering' ? '进站中' : w.state === 'exiting' ? '出站中'
       : w.state === 'bossdown' ? '击破！' : w.state === 'victory' ? '胜利！' : w.state === 'pit' ? '已停靠' : '已抛锚';
@@ -56,6 +59,7 @@ export class HUD {
     // Tyrant truck health bar lives above the road, only while it stands.
     const boss = c.bossSlot >= 0 ? c.enemies.items[c.bossSlot] : null;
     const bossActive = boss !== null && boss.active && c.bossMaxHp > 0;
+    if (bossActive && this.bossLabel.textContent !== w.bossTierName) this.bossLabel.textContent = w.bossTierName;
     this.bossBar.classList.toggle('hidden', !bossActive);
     if (bossActive) this.bossFill.style.width = `${Math.max(0, boss.hp / c.bossMaxHp * 100)}%`;
     this.updateCombo(c);
@@ -63,12 +67,12 @@ export class HUD {
     const bossWindup = boss !== null && boss.active && boss.phase === 1;
     const danger = w.state === 'combat' && (c.health <= 20 || (c.targetDistance > 0 && c.targetDistance < 90) || bossWindup);
     const alert = w.state === 'countdown' ? '倒数出发 · 保持车道'
-      : w.state === 'bossdown' ? '霸王卡车击破 · 战利品入账'
+      : w.state === 'bossdown' ? `${w.bossTierName}击破 · 战利品入账`
       : w.state === 'victory' ? '路线完成 · 正在生成战报'
       : w.state === 'entering' ? '自动驶入得来速 · 即将补给'
       : w.state === 'exiting' ? '正在汇入主路 · 准备出发'
       : w.state !== 'combat' ? ''
-      : bossWindup ? '霸王卡车蓄力侧撞 · 立刻变线！'
+      : bossWindup ? `${w.bossTierName}蓄力侧撞 · 立刻变线！`
       : c.health <= 20 ? '车况危险 · 避开撞击，到站维修'
       : c.targetDistance > 0 && c.targetDistance < 90 ? '追兵贴近 · 变道或冲刺脱身'
       : !w.isBossWave && w.remaining <= 3 ? '准备进站 · 自动停靠补给' : '';

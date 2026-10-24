@@ -1,4 +1,6 @@
 import { BASE_SPEED } from '../config';
+import { bossCones, bossCruiseRest, bossHpScale, bossRecover, bossSlamSpeed, bossTelegraph, bossThrowInterval, contactDamage } from '../systems/balance';
+import { friesSlow } from './weaponMapper';
 import type { DriftPhysics } from '../systems/DriftPhysics';
 import { ObjectPool } from '../utils/ObjectPool';
 
@@ -12,7 +14,7 @@ export const PELLET_SPREAD = 0.24;
 export const MAGNET_RANGE = 80;
 /** Combo milestone rewards; index is the tier reached (1 per threshold crossing). */
 const COMBO_TIERS = [10, 20, 35, 50, 75] as const;
-const COMBO_BONUS = [0, 1, 2, 4, 6, 10] as const;
+const COMBO_BONUS = [0, 1, 2, 3, 5, 8] as const;
 /** Coin value per kind: cones 1, carts 2, riders 2, tyrant 4. Riders are the volume farm. */
 const COIN_VALUE = [1, 2, 2, 4] as const;
 const GRID_COLUMNS = 10, GRID_ROWS = 36, CELL = 80, GRID_MIN_X = -400;
@@ -56,7 +58,12 @@ export class CombatSystem {
   baseMagnetRange = MAGNET_RANGE;
   /** Difficulty scaling and run modifiers, set by the scene from car + theme + wave. */
   hpScale = 1;
-  bossHpScale = 1;
+  /** Current wave number, set by the wave system; drives the contact damage curve. */
+  wave = 1;
+  /** Boss tier for the current round (1-4); set before the boss spawns. */
+  bossTier = 1;
+  /** Ice-burst damage when a frozen enemy shatters; scaled by the ice weapon level. */
+  iceBurstDamage = 12;
   coinMultiplier = 1;
   ramSlow = 0;
   private coinCarry = 0;
@@ -91,7 +98,7 @@ export class CombatSystem {
     const e = this.enemies.acquire(); if (!e) return null;
     e.kind = kind; e.x = e.px = x; e.z = e.pz = z;
     e.slow = 1; e.slowTime = e.burn = e.burnDamage = 0; e.frozen = false;
-    e.hp = kind === 3 ? Math.round(BOSS_HP * this.bossHpScale) : Math.round(ENEMY_HP[kind] * this.hpScale);
+    e.hp = kind === 3 ? Math.round(BOSS_HP * bossHpScale(this.bossTier)) : Math.round(ENEMY_HP[kind] * this.hpScale);
     e.flash = e.contact = 0; e.phase = 0; e.timer = 0; e.tx = 0; e.throwCd = 2.4;
     // Riders line up behind the car briefly before their first lunge; a lone rider
     // usually dies to return fire first, packs are what get through.
@@ -206,19 +213,22 @@ export class CombatSystem {
       }
       if (e.kind === 3) {
         // Tyrant truck: drifts ahead, telegraphs a lane-slam, and drops barriers.
+        // Every boss tier slams harder, faster and litters more of the road.
+        const tier = this.bossTier;
         e.timer -= dt; e.throwCd -= dt;
         const relative = e.z - p.progress;
         if (e.phase === 0) {
           e.vx += (Math.sin(this.time * 0.7) * 120 - e.vx) * Math.min(1, dt * 1.6);
-          if (e.timer <= 0) { e.phase = 1; e.timer = 0.9; e.tx = carX; }
+          if (e.timer <= 0) { e.phase = 1; e.timer = bossTelegraph(tier); e.tx = carX; }
         } else if (e.phase === 1) {
           e.flash = 0.09; e.vx *= Math.pow(0.01, dt);
-          if (e.timer <= 0) { e.phase = 2; e.timer = 0.5; e.vx = Math.max(-640, Math.min(640, (e.tx - e.x) / 0.5)); }
+          const slam = bossSlamSpeed(tier);
+          if (e.timer <= 0) { e.phase = 2; e.timer = 0.5; e.vx = Math.max(-slam, Math.min(slam, (e.tx - e.x) / 0.5)); }
         } else if (e.phase === 2) {
-          if (e.timer <= 0) { e.phase = 3; e.timer = 1.5; }
+          if (e.timer <= 0) { e.phase = 3; e.timer = bossRecover(tier); }
         } else {
           e.vx *= Math.pow(0.05, dt);
-          if (e.timer <= 0) { e.phase = 0; e.timer = 3.2 + Math.random() * 1.4; }
+          if (e.timer <= 0) { e.phase = 0; e.timer = bossCruiseRest(tier) + Math.random() * 1.4; }
         }
         // Hover ahead of the car at an absolute pace; a slow correction keeps the
         // truck on screen and the emergency chase means it can never fall behind.
@@ -231,8 +241,11 @@ export class CombatSystem {
         const glide = e.slow < 1 ? 0.55 : 1;
         e.x += e.vx * dt * glide; e.z += e.vz * dt;
         if (e.throwCd <= 0) {
-          e.throwCd = 4.6;
-          this.spawn(0, Math.max(-138, Math.min(138, carX)), p.progress + 560);
+          e.throwCd = bossThrowInterval(tier);
+          const coneX = Math.max(-138, Math.min(138, carX));
+          this.spawn(0, coneX, p.progress + 560);
+          // Tiers three and four cover both lanes: one barrier at the car, one across.
+          if (bossCones(tier) > 1) this.spawn(0, coneX > 0 ? coneX - 190 : coneX + 190, p.progress + 560);
         }
       }
       if (e.z < p.progress - 450 || e.z > p.progress + 2000) {
@@ -252,7 +265,7 @@ export class CombatSystem {
           if (frozen && !e.active) this.iceBurst(e); this.impact = 1;
           // Guided pit entry plows through leftover hazards on rails without hurting the car.
           if (this.invincible === 0 && p.pulseTime === 0 && p.nitroTime === 0 && !this.entering) {
-            this.hurt(e.kind === 0 ? 5 : e.kind === 3 ? 14 : 9, e);
+            this.hurt(contactDamage(e.kind, this.wave), e);
           }
           if (e.active) {
             // Push along travel direction: a rider re-crossing the car from ahead must
@@ -331,7 +344,7 @@ export class CombatSystem {
       }
       if (target) {
         b.hitMask[target.slot] = 1; this.hit(target, b.damage);
-        if (b.kind === 2 && b.level > 1) { target.slow = b.level === 2 ? 0.8 : 0.7; target.slowTime = 3; }
+        if (b.kind === 2 && b.level > 1) { target.slow = friesSlow(b.level); target.slowTime = 3; }
         if (--b.pierce <= 0) this.bullets.release(b);
       }
       else if (b.life <= 0 || b.z < p.progress - 450 || b.z > p.progress + 1600) this.bullets.release(b);
@@ -359,7 +372,7 @@ export class CombatSystem {
   private iceBurst(origin: Enemy): void {
     for (let i = 0; i < this.enemies.capacity; i++) {
       const e = this.enemies.items[i];
-      if (e.active && Math.hypot(e.x - origin.x, e.z - origin.z) <= 100) { e.slow = 0; e.slowTime = 2; e.frozen = true; this.hit(e, 12); }
+      if (e.active && Math.hypot(e.x - origin.x, e.z - origin.z) <= 100) { e.slow = 0; e.slowTime = 2; e.frozen = true; this.hit(e, this.iceBurstDamage); }
     }
   }
   private hurt(amount: number, enemy?: Enemy): void {

@@ -44,11 +44,11 @@ test('entry from any driving lane clears the divider before parking in the origi
 test('exit freezes the wave clock and returns to a safe main-road position before driving resumes', () => {
   const wave = new WaveSystem(), p = new DriftPhysics(), combat = new CombatSystem(silent);
   wave.state = 'pit'; wave.cameraSide = PIT_CAMERA_SIDE; p.x = PIT_PLAYER_X; p.progress = 500;
-  wave.next(combat, p); assert.equal(wave.state, 'exiting'); assert.equal(wave.remaining, 48);
+  wave.next(combat, p); assert.equal(wave.state, 'exiting'); assert.equal(wave.remaining, 44);
   let lastX = p.x;
   for (let i = 0; i < Math.ceil(PIT_EXIT_SECONDS / FIXED_DT); i++) {
     wave.step(p, combat, FIXED_DT); assert.ok(p.x <= lastX); lastX = p.x;
-    assert.equal(wave.remaining, 48); assert.equal(combat.enemies.activeCount, 0);
+    assert.equal(wave.remaining, 44); assert.equal(combat.enemies.activeCount, 0);
   }
   assert.equal(wave.state, 'combat'); assert.equal(p.x, PIT_PLAYER_X);
   assert.ok(p.progress - wave.pitProgress > PIT_WALL_END, 'manual driving resumes beyond the divider'); assert.equal(wave.cameraSide, 0);

@@ -14,6 +14,7 @@ import { BASE_SPEED, FIXED_DT, ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
 import { C, TIER_COLORS, TIER_SMOKE } from '../data/colors';
 import { carById, type CarId } from '../data/cars';
 import { themeFor } from '../systems/Theme';
+import { bossBurstCount, bossReward, bossTierOf, enemyHpScale } from '../systems/balance';
 import { clearRun, saveRun, type RunSave } from '../systems/SaveSystem';
 import { Player } from '../entities/Player';
 import { ParticleManager } from '../effects/ParticleManager';
@@ -190,7 +191,8 @@ export class GameScene extends Phaser.Scene {
     this.player.physics.nitro = run.nitro;
     this.wave.number = run.wave; this.wave.duration = run.duration;
     this.wave.fast = this.fast;
-    this.combat.hpScale = 1 + (run.wave - 1) * 0.15;
+    this.combat.wave = run.wave;
+    this.combat.hpScale = enemyHpScale(run.wave);
     if (run.atPit) {
       this.wave.state = 'pit';
       this.wave.pitProgress = this.player.physics.progress;
@@ -266,18 +268,19 @@ export class GameScene extends Phaser.Scene {
     });
     this.scene.start('Result');
   }
-  /** Boss fall: bullet time, white flash and a fountain of coins. */
+  /** Boss fall: bullet time, white flash and a fountain of coins scaled by the round. */
   private celebrateBoss(): void {
     this.bossCelebrated = true;
+    const tier = bossTierOf(this.wave.number);
     this.slowmo = 0.55;
     this.flashAlpha = 0.9;
     this.flashRect.setVisible(true);
     if (!this.reducedMotion) this.shake.trigger(8, 0.5);
     this.audio.victoryJingle();
     this.audio.impact(true);
-    this.combat.burstCoins(this.combat.bossX, this.combat.bossZ, 26, 52);
+    this.combat.burstCoins(this.combat.bossX, this.combat.bossZ, bossBurstCount(tier), bossReward(tier));
     this.wave.bossDown(2.4);
-    this.hud.showNotice('霸王卡车击破！', 2.2);
+    this.hud.showNotice(this.wave.isFinalWave ? `${this.wave.bossTierName}击破 · 路线完成！` : `${this.wave.bossTierName}击破 · 进站补给`, 2.2);
   }
   private fixedUpdate(): void {
     const p = this.player.physics;
@@ -329,6 +332,7 @@ export class GameScene extends Phaser.Scene {
       this.hud.update(p, 0);
       if (this.wave.state === 'entering') { this.weapons.clear(); this.persistRun(true); }
       if (before === 'countdown' && this.wave.state === 'combat') this.persistRun(false);
+      if (before === 'exiting' && this.wave.state === 'combat') this.bossCelebrated = false;
       if (this.wave.state === 'pit') { this.shopView.open(this.wave.number); this.pitPanel.classList.remove('hidden'); document.body.classList.add('is-pit'); document.getElementById('drive-ui')!.classList.add('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
       if (this.wave.state === 'victory') this.victoryTime = 0;
       this.hud.updateCombat(this.combat, this.wave);

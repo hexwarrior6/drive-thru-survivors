@@ -13,9 +13,9 @@ function setup() { const shop = new ShopSystem(demoSnapshot(), () => .5); shop.o
 test('catalog maps all menu variants and uses exact catalog damage/levels', () => {
   const p = demoSnapshot().stores[0].products[0];
   for (const [name,type] of [['巨无霸','burger'],['麦辣鸡腿堡','missile'],['中薯条','fries'],['麦乐鸡','mine'],['可口可乐','cola'],['柠檬红茶','ice'],['拿铁咖啡','coffee'],['浓缩咖啡','desperate'],['苹果派','heal'],['甜筒','shield'],['开心乐园餐','wingman']]) assert.equal(mapProductToWeapon({...p,name}),type);
-  assert.deepEqual(stats.burger.damage,[40,60,90]); assert.deepEqual(stats.fries.count,[5,7,9]); assert.deepEqual(stats.cola.range,[60,80,100]);
+  assert.deepEqual(stats.burger.damage,[40,60,90,125,170]); assert.deepEqual(stats.fries.count,[5,7,9,11,13]); assert.deepEqual(stats.cola.range,[60,80,100,120,140]);
 });
-test('shop draws three menu products, deducts once, upgrades same name without consuming slots and caps Lv3', () => {
+test('shop draws three menu products, deducts once, upgrades same name without consuming slots and caps Lv5', () => {
   const {shop,combat} = setup(); combat.money = 1000;
   shop.offers = demoSnapshot().stores[0].products.slice(0,3);
   const price = shop.price(shop.offers[0]);
@@ -23,9 +23,41 @@ test('shop draws three menu products, deducts once, upgrades same name without c
   const mountedAt = shop.slots.findIndex(w => w?.name === shop.offers[0]!.name);
   assert.ok(mountedAt >= 0);
   assert.equal(shop.buy(0,combat),'unavailable');
-  for (let l=2;l<=3;l++) { shop.sold.clear(); assert.equal(shop.buy(0,combat),'bought'); assert.equal(shop.slots[mountedAt]?.level,l); }
+  for (let l=2;l<=5;l++) { shop.sold.clear(); assert.equal(shop.buy(0,combat),'bought'); assert.equal(shop.slots[mountedAt]?.level,l); }
   shop.sold.clear(); assert.equal(shop.buy(0,combat),'unavailable');
   assert.equal(shop.slots.filter(Boolean).length, shop.slots.some(w => w?.type === 'starter') ? 2 : 1);
+});
+test('upgrades cost a per-level premium while coupons keep discounting them', () => {
+  const {shop,combat} = setup(); combat.money = 10000;
+  const offer = demoSnapshot().stores[0].products.find(p => p.name === '巨无霸')!;
+  shop.offers = [offer];
+  const base = shop.basePrice(offer);
+  shop.discount = 1;
+  const spent: number[] = [];
+  for (let level = 0; level < 5; level++) {
+    assert.equal(shop.price(offer, level), Math.max(1, Math.ceil(base * [1, 1.8, 2.8, 4.2, 6][level])));
+    shop.buy(0, combat); spent.push(combat.money);
+    shop.sold.clear();
+  }
+  for (let i = 1; i < spent.length; i++) assert.ok(spent[i] < spent[i - 1]);
+  shop.discount = 0.9;
+  assert.equal(shop.price(offer, 2), Math.max(1, Math.ceil(Math.ceil(base * 2.8) * 0.9)));
+});
+test('round one benches boss-killer guns; round two puts them up front', () => {
+  const template = demoSnapshot().stores[0].products[0]!;
+  const snapshot = demoSnapshot();
+  snapshot.stores = [{ ...snapshot.stores[0]!, products: [
+    { ...template, id: 'a', name: '巨无霸' },
+    { ...template, id: 'b', name: '开心乐园餐' },
+    { ...template, id: 'c', name: '麦辣鸡腿堡' },
+  ] }];
+  const shop = new ShopSystem(snapshot, () => .5);
+  shop.open(1);
+  assert.equal(mapProductToWeapon(shop.offers[0]), 'burger');
+  assert.ok(shop.offers.slice(1).every(p => ['missile', 'wingman'].includes(mapProductToWeapon(p))));
+  shop.open(6);
+  assert.ok(['missile', 'wingman'].includes(mapProductToWeapon(shop.offers[0])));
+  assert.equal(mapProductToWeapon(shop.offers[2]), 'burger');
 });
 test('purchases route to their mounts: front gun, rear gun, aux fills in order; the scatter gun is built in', () => {
   const {shop,combat} = setup(); combat.money = 1000; shop.open(1);
@@ -85,7 +117,7 @@ test('exit pauses wave countdown then grants a full two second turbo with collis
   const {combat,physics}=setup(), wave=new WaveSystem();wave.state='pit';wave.pitProgress=physics.progress;
   wave.next(combat,physics);
   while(String(wave.state)==='exiting')wave.step(physics,combat,FIXED_DT);
-  assert.equal(wave.remaining,48);assert.equal(physics.nitroTime,2);assert.equal(physics.speed,510);
+  assert.equal(wave.remaining,44);assert.equal(physics.nitroTime,2);assert.equal(physics.speed,510);
   const hp=combat.health;combat.spawn(1,physics.x-225,physics.progress);combat.step(physics,FIXED_DT);assert.equal(combat.health,hp);
 });
 test('startup makes one request and returns an explicitly demo snapshot on offline/bad payload', async () => {

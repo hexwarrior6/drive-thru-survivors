@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { carById } from '../data/cars';
 import { weaponNames } from '../combat/weaponMapper';
+import { bossName, bossTierOf } from '../systems/balance';
 import { recordRun, type HallEntry } from '../systems/SaveSystem';
 import type { WeaponType } from '../combat/weaponMapper';
 
@@ -33,7 +34,7 @@ export class ResultScene extends Phaser.Scene {
     const victory = summary?.victory ?? false;
     document.getElementById('result-tag')!.textContent = victory ? 'ROUTE COMPLETE' : 'ENGINE OFF';
     document.getElementById('result-heading')!.textContent = victory
-      ? `第 ${summary!.wave} 波 · 霸王卡车击破，路线完成！`
+      ? `第 ${summary!.wave} 波 · ${bossName(bossTierOf(summary!.wave))}击破，路线完成！`
       : `第 ${summary?.wave ?? 1} 波 · 车况耗尽，就地停靠。`;
     const parts = summary?.slots ?? [];
     document.getElementById('result-build')!.replaceChildren(

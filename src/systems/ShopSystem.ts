@@ -1,6 +1,7 @@
 import { discoveryScore } from '../data/menuDiscovery';
 import type { Product, Snapshot, Store } from '../data/snapshot';
-import { mapProductToWeapon, mountOf, type WeaponType } from '../combat/weaponMapper';
+import { mapProductToWeapon, mountOf, LATE_GAME_TYPES, MAX_WEAPON_LEVEL, type WeaponType } from '../combat/weaponMapper';
+import { repairCost as repairCostAt, upgradeCostMultiplier, WAVES_PER_ROUND } from './balance';
 export interface EquippedWeapon { name: string; type: WeaponType; level: number; cooldown: number }
 export interface Wallet { money: number; health: number }
 /** Fixed mounts: [0] front gun, [1] rear gun, [2..4] aux passives. The stock scatter
@@ -43,14 +44,23 @@ export class ShopSystem {
     this.wave = wave; this.store = this.destination(wave);
     const products = [...this.store.products];
     for (let i = products.length - 1; i > 0; i--) { const j = Math.floor(this.random() * (i + 1)); [products[i], products[j]] = [products[j], products[i]]; }
-    this.offers = products.sort((a,b) => discoveryScore(b) - discoveryScore(a)); this.sold.clear(); this.pending = this.selected = -1;
+    products.sort((a, b) => discoveryScore(b) - discoveryScore(a));
+    // Boss-killer tools (missiles, escort toys) surface in the top cards only from
+    // round two; round one keeps the menu focused on core guns. The full store
+    // menu still lists everything — this only curates the three featured cards.
+    if (wave <= WAVES_PER_ROUND) products.sort((a, b) => Number(LATE_GAME_TYPES.has(mapProductToWeapon(a))) - Number(LATE_GAME_TYPES.has(mapProductToWeapon(b))));
+    else products.sort((a, b) => Number(LATE_GAME_TYPES.has(mapProductToWeapon(b))) - Number(LATE_GAME_TYPES.has(mapProductToWeapon(a))));
+    this.offers = products; this.sold.clear(); this.pending = this.selected = -1;
     const coupon = this.snapshot.coupons[0];
     if (coupon) { this.discount = 0.9; this.couponTitle = coupon.title; }
     else { this.discount = 1; this.couponTitle = ''; }
   }
   basePrice(p: Product): number { return Math.max(1, Math.ceil(p.price / 100)); }
-  price(p: Product): number { return Math.max(1, Math.ceil(this.basePrice(p) * this.discount)); }
-  repairCost(): number { return 10 + (this.wave - 1) * 2; }
+  /** Upgrade list price at the given current level, before any coupon. */
+  listPrice(p: Product, level = 0): number { return Math.max(1, Math.ceil(this.basePrice(p) * upgradeCostMultiplier(level))); }
+  /** What the wallet actually pays: list price after this stop's coupon. */
+  price(p: Product, level = 0): number { return Math.max(1, Math.ceil(this.listPrice(p, level) * this.discount)); }
+  repairCost(): number { return repairCostAt(this.wave); }
   equipped(p: Product): EquippedWeapon | undefined { return this.slots.find(w => w?.name === p.name) ?? undefined; }
   /** The mounts a weapon type may occupy, in fill order. */
   mountsFor(type: WeaponType): number[] {
@@ -59,9 +69,9 @@ export class ShopSystem {
   }
   buy(index: number, wallet: Wallet, replacement = -1): 'bought' | 'replace' | 'unavailable' {
     const p = this.offers[index];
-    if (!p || this.sold.has(index) || wallet.money < this.price(p)) return 'unavailable';
     const same = this.equipped(p);
-    if (same?.level === 3) return 'unavailable';
+    if (!p || this.sold.has(index) || wallet.money < this.price(p, same?.level ?? 0)) return 'unavailable';
+    if (same && same.level >= MAX_WEAPON_LEVEL) return 'unavailable';
     const mounts = this.mountsFor(mapProductToWeapon(p));
     let slot = mounts.find(i => this.slots[i] === null);
     // The free scatter gun is a real mount occupant: displacing it is a deliberate
@@ -70,7 +80,7 @@ export class ShopSystem {
       if (replacement < 0 || !mounts.includes(replacement)) { this.pending = index; return 'replace'; }
       slot = replacement;
     }
-    wallet.money -= this.price(p);
+    wallet.money -= this.price(p, same?.level ?? 0);
     if (same) same.level++;
     else this.slots[slot!] = { name: p.name, type: mapProductToWeapon(p), level: 1, cooldown: 0 };
     this.sold.add(index); this.pending = this.selected = -1; return 'bought';

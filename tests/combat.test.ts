@@ -175,18 +175,17 @@ test('pool exhaustion never grows storage, pickup overflow preserves drop value'
   for (let i = 0; i < 130; i++) c.spawn(0, 0, 500);
   assert.equal(c.enemies.items.length, 128); assert.equal(c.enemies.activeCount, 128); assert.equal(c.enemies.dropped, 2);
 });
-test('45-second wave keeps hazards alive into the pit approach, grants reward once, next waves cap at 60s', () => {
+test('42-second wave keeps hazards alive into the pit approach, grants reward once, next waves cap at 50s', () => {
   const c = new CombatSystem(silent), w = new WaveSystem(), p = new DriftPhysics(); p.speed = BASE_SPEED;
-  for (let i = 0; i < 2699; i++) w.step(p, c, FIXED_DT);
-  assert.equal(w.state, 'combat'); w.step(p, c, FIXED_DT);
+  for (let i = 0; i < 2600 && w.state === 'combat'; i++) w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'entering'); assert.ok(c.enemies.activeCount > 0); assert.equal(c.entering, true); assert.equal(c.money, 9);
   const start = p.progress;
   const approachSeconds = Math.max(PIT_ENTRY_SECONDS, 2 * (w.pitProgress - start) / BASE_SPEED);
   for (let i = 0; i < Math.ceil(approachSeconds / FIXED_DT) + 2; i++) w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'pit'); assert.equal(p.x, PIT_PLAYER_X); assert.equal(p.speed, 0); assert.ok(p.progress > start);
   for (let i = 0; i < 90; i++) w.step(p, c, FIXED_DT);
-  assert.equal(c.money, 9); w.next(c, p); assert.equal(w.remaining, 48);
-  w.number = 10; w.state = 'pit'; w.next(c, p); assert.equal(w.remaining, 60);
+  assert.equal(c.money, 9); w.next(c, p); assert.equal(w.remaining, 44);
+  w.number = 10; w.state = 'pit'; w.next(c, p); assert.equal(w.remaining, 50);
 });
 test('combat hot paths contain no object construction, literals or closure allocation', () => {
   for (const path of ['src/combat/WeaponSystem.ts', 'src/combat/WeaponView.ts', 'src/combat/CombatSystem.ts', 'src/combat/CombatView.ts', 'src/systems/PitStopView.ts', 'src/systems/WaveSystem.ts', 'src/effects/ParticleManager.ts', 'src/scenes/GameScene.ts']) {

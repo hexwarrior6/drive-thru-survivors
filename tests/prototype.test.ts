@@ -42,8 +42,13 @@ function driveWave(react: boolean) {
 
 test('same loadout and wave reward hazard avoidance and timed escape over straight driving', () => {
   const straight = driveWave(false), reactive = driveWave(true);
-  assert.equal(straight.health, 0); assert.ok(straight.seconds < 45);
-  assert.equal(reactive.state, 'entering'); assert.equal(reactive.seconds, 45);
+  // Round one is the teaching round: even lazy driving limps to the pit stop,
+  // but reactive steering must finish clearly healthier (straight driving can
+  // still farm ram-killed cones for coins, so income is not the discriminator).
+  assert.equal(straight.state, 'entering'); assert.equal(straight.seconds, 42);
+  assert.ok(straight.health < 60, `straight driving must still pay for it (${straight.health})`);
+  assert.equal(reactive.state, 'entering'); assert.equal(reactive.seconds, 42);
   assert.ok(reactive.health >= 40); assert.equal(reactive.wallHits, 0);
-  assert.ok(reactive.money > straight.money);
+  assert.ok(reactive.health > straight.health, `reactive ${reactive.health} vs straight ${straight.health}`);
+  assert.ok(reactive.money >= 9 && straight.money >= 9, 'both bank the pit arrival bonus');
 });

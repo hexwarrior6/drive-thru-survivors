@@ -4,6 +4,7 @@ import { CombatSystem, BOSS_HP, MAGNET_RANGE } from '../src/combat/CombatSystem'
 import { WeaponSystem } from '../src/combat/WeaponSystem';
 import { ShopSystem } from '../src/systems/ShopSystem';
 import { WaveSystem } from '../src/systems/WaveSystem';
+import { bossBurstCount, bossReward } from '../src/systems/balance';
 import { DriftPhysics } from '../src/systems/DriftPhysics';
 import { TrackRoute } from '../src/systems/TrackRoute';
 import { themeFor } from '../src/systems/Theme';
@@ -14,7 +15,7 @@ import { carById } from '../src/data/cars';
 import { BASE_SPEED, FIXED_DT } from '../src/config';
 const silent = { explode() {} };
 
-test('wave five fields the tyrant truck without a clock and victory follows the kill', () => {
+test('wave five fields the tyrant truck without a clock; the kill rolls into the next round', () => {
   const c = new CombatSystem(silent), w = new WaveSystem(), p = new DriftPhysics();
   w.number = 5; w.beginCountdown(0.01);
   w.step(p, c, FIXED_DT);
@@ -27,6 +28,7 @@ test('wave five fields the tyrant truck without a clock and victory follows the 
   assert.ok(boss, 'tyrant truck must spawn in wave five');
   assert.equal(c.bossMaxHp, BOSS_HP);
   assert.ok(w.isBossWave);
+  assert.equal(w.bossTier, 1);
   boss!.hp = 1e9;
   for (let i = 0; i < 60 * 70; i++) {
     p.previousProgress = p.progress; p.progress += 340 * FIXED_DT; p.speed = 340; p.vy = -340;
@@ -41,8 +43,32 @@ test('wave five fields the tyrant truck without a clock and victory follows the 
   w.bossDown(2.4);
   w.step(p, c, FIXED_DT);
   assert.equal(w.state, 'bossdown');
-  for (let i = 0; i < 160 && w.state !== 'victory'; i++) w.step(p, c, FIXED_DT);
-  assert.equal(w.state, 'victory');
+  for (let i = 0; i < 160 && w.state === 'bossdown'; i++) w.step(p, c, FIXED_DT);
+  assert.equal(w.state, 'entering', 'a mid-run boss kill opens the pit stop for the next round');
+  for (let i = 0; i < 60 * 8 && w.state !== 'pit'; i++) w.step(p, c, FIXED_DT);
+  assert.equal(w.state, 'pit');
+  w.next(c, p);
+  assert.equal(w.number, 6);
+  assert.equal(w.isBossWave, false);
+});
+
+test('the fourth boss at wave twenty ends the run with victory', () => {
+  const c = new CombatSystem(silent), w = new WaveSystem(), p = new DriftPhysics();
+  w.number = 20; w.beginCountdown(0.01);
+  w.step(p, c, FIXED_DT);
+  for (let i = 0; i < 120 && c.bossSlot < 0; i++) {
+    p.previousProgress = p.progress; p.progress += 340 * FIXED_DT; p.speed = 340; p.vy = -340;
+    w.step(p, c, FIXED_DT);
+  }
+  const boss = c.enemies.items[c.bossSlot];
+  assert.ok(boss?.active, 'the final tyrant must spawn');
+  assert.equal(w.bossTier, 4);
+  assert.equal(c.bossMaxHp, Math.round(BOSS_HP * 5.8));
+  boss!.hp = 100;
+  c.hit(boss!, 99999);
+  w.bossDown(0.02);
+  for (let i = 0; i < 10 && w.state === 'bossdown'; i++) w.step(p, c, FIXED_DT);
+  assert.equal(w.state, 'victory', 'only the fourth boss finishes the run');
 });
 
 test('celebration burst fills the pickup pool with magnet coins worth the jackpot', () => {
@@ -144,7 +170,7 @@ test('snapshot coupons set the store promotion and repair scales with the wave',
   assert.equal(shop.price(p), Math.max(1, Math.ceil(Math.ceil(p.price / 100) * 0.9)));
   assert.equal(shop.repairCost(), 10);
   shop.open(3);
-  assert.equal(shop.repairCost(), 14);
+  assert.equal(shop.repairCost(), 16);
   assert.equal(shop.couponTitle, '金秋特惠 · 全场 9 折');
 });
 
@@ -216,7 +242,7 @@ test('shield tiers two and three orbit cone shards that grind down close enemies
   assert.ok(enemy.hp < 1000, 'orbit shards must chip nearby enemies');
 });
 
-/** Scripted five-wave run: reactive steering, damage-first shopping, repairs under pressure. */
+/** Scripted twenty-wave run: reactive steering, damage-first shopping, repairs under pressure. */
 function driveRun() {
   const combat = new CombatSystem(silent);
   const wave = new WaveSystem();
@@ -227,23 +253,33 @@ function driveRun() {
   shop.open(1);
   const weapons = new WeaponSystem(shop.slots, combat);
   const damageTypes = new Set(['burger', 'fries', 'missile', 'mine', 'flame']);
-  const income: number[] = [0, 0, 0, 0, 0, 0];
+  const income: number[] = Array.from({ length: 21 }, () => 0);
+  const bossFrames: number[] = [];
+  let bossOpen = false;
   let startMoney = 0, lastWave = 1, frames = 0, purchases = 0, repairs = 0;
-  let bossFightFrames = 0, celebrated = false;
+  let celebrated = false, minHealth = 100;
   const shopVisit = () => {
     shop.open(wave.number);
     while (combat.health < 80 && combat.money >= shop.repairCost()) { shop.repair(combat); repairs++; }
-    const typed = shop.offers.map((offer, i) => ({ i, price: shop.price(offer), type: mapProductToWeapon(offer) })).sort((a, b) => a.price - b.price);
-    // Guns fill their mounts; the scripted driver upgrades in place, swaps a weak front
-    // gun for a stronger one, and spends surplus on survival aux.
+    // A median driver keeps the core guns growing first: upgrade owned damage,
+    // then mount new damage, then survival aux — cheapest first within each tier.
+    const priority = (i: number) => {
+      const same = shop.equipped(shop.offers[i]);
+      const damage = damageTypes.has(mapProductToWeapon(shop.offers[i]));
+      if (same && damage) return 0;
+      if (!same && damage) return 1;
+      if (same) return 2;
+      return 3;
+    };
+    const typed = shop.offers.map((offer, i) => ({ i, price: shop.price(offer, shop.equipped(offer)?.level ?? 0), rank: priority(i) })).sort((a, b) => a.rank - b.rank || a.price - b.price);
     for (const { i, price } of typed) {
       if (shop.sold.has(i)) continue;
-      const type = typed.find(item => item.i === i)!.type;
+      const type = mapProductToWeapon(shop.offers[i]);
       const same = shop.equipped(shop.offers[i]);
       const damage = damageTypes.has(type);
       const survival = type === 'heal' || type === 'shield';
       if (!damage && !survival && !same) continue;
-      if (same && same.level >= 3) continue;
+      if (same && same.level >= 5) continue;
       if (combat.money < price) continue;
       const result = shop.buy(i, combat);
       if (result === 'bought') { purchases++; continue; }
@@ -253,7 +289,7 @@ function driveRun() {
     }
     p.nitro = Math.min(100, p.nitro + 20);
   };
-  for (frames = 0; frames < 60 * 60 * 14; frames++) {
+  for (frames = 0; frames < 60 * 60 * 25; frames++) {
     if (wave.state === 'combat' || wave.state === 'countdown') {
       weapons.configure(p);
       let targetLane = 225, bestScore = -Infinity;
@@ -278,7 +314,11 @@ function driveRun() {
       p.step(input, FIXED_DT, route.curvatureAt(p.progress));
       combat.step(p, FIXED_DT);
       weapons.step(p, FIXED_DT);
-      if (wave.isBossWave) bossFightFrames++;
+      if (combat.health < minHealth) minHealth = combat.health;
+      if (wave.isBossWave) {
+        if (!bossOpen) { bossOpen = true; bossFrames.push(0); }
+        bossFrames[bossFrames.length - 1]++;
+      }
     } else if (wave.state === 'bossdown' || wave.state === 'victory') {
       weapons.configure(p);
       input.brake = false; input.boost = false;
@@ -289,7 +329,8 @@ function driveRun() {
     }
     if (combat.bossDefeated && !celebrated) {
       celebrated = true;
-      combat.burstCoins(combat.bossX, combat.bossZ, 26, 52);
+      bossOpen = false;
+      combat.burstCoins(combat.bossX, combat.bossZ, bossBurstCount(wave.bossTier), bossReward(wave.bossTier));
       wave.bossDown(2.4);
     }
     wave.step(p, combat, FIXED_DT);
@@ -297,6 +338,7 @@ function driveRun() {
       income[lastWave] = combat.money - startMoney;
       shopVisit();
       wave.next(combat, p);
+      celebrated = false;
       lastWave = wave.number;
       startMoney = combat.money;
     }
@@ -308,26 +350,29 @@ function driveRun() {
   }
   return {
     victory: wave.state === 'victory' && combat.bossDefeated,
-    frames, bossFightFrames, income, spent: purchases, repairs,
+    frames, bossFrames, bosses: bossFrames.length, income, spent: purchases, repairs, minHealth,
     weapons: shop.slots.filter(Boolean).length, health: combat.health,
     kills: combat.kills, maxCombo: combat.maxCombo, distance: p.distance,
+    slots: shop.slots.map(w => w ? `${w.type} Lv.${w.level}` : '·'),
   };
 }
 
-test('five-wave economy keeps income in tight bands while still funding a build', () => {
+test('twenty-wave economy keeps income in rising bands while still funding a build', () => {
   const run = driveRun();
-  assert.ok(run.victory, `the scripted run must beat the tyrant truck (frames ${run.frames})`);
-  assert.ok(run.bossFightFrames > 60 && run.bossFightFrames < 60 * 60, `boss fight must be a real fight (${run.bossFightFrames} frames)`);
-  // Per-wave collected income: modest early, snowballing with the build, boss pays the jackpot.
-  assert.ok(run.income[1] >= 45 && run.income[1] <= 85, `wave 1 income ${run.income[1]}`);
-  assert.ok(run.income[2] >= 45 && run.income[2] <= 100, `wave 2 income ${run.income[2]}`);
-  assert.ok(run.income[3] >= 60 && run.income[3] <= 135, `wave 3 income ${run.income[3]}`);
-  assert.ok(run.income[4] >= 80 && run.income[4] <= 155, `wave 4 income ${run.income[4]}`);
-  assert.ok(run.income[5] >= 30 && run.income[5] <= 110, `wave 5 income ${run.income[5]}`);
+  assert.ok(run.victory, `the scripted run must beat all four bosses (frames ${run.frames}, state health ${run.health})`);
+  assert.equal(run.bosses, 4, `the run must field four boss fights (got ${run.bosses})`);
+  for (const frames of run.bossFrames) assert.ok(frames > 60 && frames < 60 * 160, `each boss fight must be a real fight (${run.bossFrames.join(',')})`);
+  // Per-wave collected income: modest early, snowballing with the build, bosses pay jackpots.
+  const band = (w: number, low: number, high: number) =>
+    assert.ok(run.income[w] >= low && run.income[w] <= high, `wave ${w} income ${run.income[w]}`);
+  band(1, 40, 85); band(2, 45, 95); band(3, 55, 125); band(4, 65, 145);
+  band(5, 55, 180); band(10, 90, 280); band(15, 110, 320); band(20, 150, 720);
+  for (let w = 6; w <= 19; w++) if (w !== 10 && w !== 15) assert.ok(run.income[w] >= 90 && run.income[w] <= 320, `wave ${w} income ${run.income[w]}`);
   const total = run.income.reduce((sum, value) => sum + value, 0);
-  assert.ok(total >= 300 && total <= 500, `total run income ${total}`);
-  assert.ok(run.weapons >= 3, `the run must fund at least three weapons (got ${run.weapons})`);
-  assert.ok(run.health > 0 && run.kills > 80, `health ${run.health}, kills ${run.kills}`);
-  assert.ok(run.maxCombo >= 10, `combo should reach double digits (got ${run.maxCombo})`);
-  console.log(`economy: income [${run.income.slice(1).join(', ')}] weapons ${run.weapons} health ${run.health} repairs ${run.repairs} kills ${run.kills} combo ${run.maxCombo}`);
+  assert.ok(total >= 3200 && total <= 4000, `total run income ${total}`);
+  assert.ok(run.weapons >= 4, `the run must fund at least four weapons (got ${run.weapons})`);
+  assert.ok(run.health > 0 && run.kills > 1200, `health ${run.health}, kills ${run.kills}`);
+  assert.ok(run.maxCombo >= 15, `combo should keep climbing in long runs (got ${run.maxCombo})`);
+  assert.ok(run.minHealth < 90, `the road must genuinely threaten the driver (min health ${run.minHealth})`);
+  console.log(`economy: income [${run.income.slice(1).join(', ')}] total ${total} weapons ${run.weapons} health ${run.health} min ${run.minHealth} repairs ${run.repairs} kills ${run.kills} combo ${run.maxCombo} bossFrames [${run.bossFrames.join(',')}]`);
 });

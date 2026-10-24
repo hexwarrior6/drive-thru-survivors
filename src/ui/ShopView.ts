@@ -1,5 +1,5 @@
 import { productHighlight } from '../data/menuDiscovery';
-import { mapProductToWeapon, mountNames, mountOf, weaponNames, weaponStats } from '../combat/weaponMapper';
+import { mapProductToWeapon, mountNames, mountOf, weaponNames, weaponStats, MAX_WEAPON_LEVEL } from '../combat/weaponMapper';
 import type { ShopSystem, Wallet } from '../systems/ShopSystem';
 import { statIcon } from './icons';
 const icons = {
@@ -28,7 +28,9 @@ export class ShopView {
     const cards = document.getElementById('shop-cards')!; cards.replaceChildren();
     const menu = document.getElementById('menu-products')!; menu.replaceChildren();
     s.offers.forEach((p, i) => {
-      const type = mapProductToWeapon(p), mount = mountOf(type), same = s.equipped(p), next = s.sold.has(i) ? (same?.level ?? 1) : Math.min(3, (same?.level ?? 0) + 1);
+      const type = mapProductToWeapon(p), mount = mountOf(type), same = s.equipped(p), level = same?.level ?? 0;
+      const next = s.sold.has(i) ? (same?.level ?? 1) : Math.min(MAX_WEAPON_LEVEL, level + 1);
+      const cost = s.price(p, level);
       const card = node('article', '', i < 3 ? 'food-card' : 'food-card menu-card');
       const art = node('div', '', 'food-art'); art.innerHTML = foodIcon(type); card.append(art);
       const highlight = productHighlight(p);
@@ -40,11 +42,11 @@ export class ShopView {
       desc.innerHTML = weaponStats(type, next).map(s => `<span class="stat">${statIcon(s.icon)}${s.text}</span>`).join('');
       card.append(desc);
       const button = node('button', '') as HTMLButtonElement;
-      const discounted = s.discount < 1 && !s.sold.has(i) && same?.level !== 3;
+      const discounted = s.discount < 1 && !s.sold.has(i) && level < MAX_WEAPON_LEVEL;
       if (s.sold.has(i)) button.textContent = '已购入';
-      else if (same?.level === 3) button.textContent = '已满阶';
-      else button.innerHTML = `<span>${same ? '升阶' : '购买'}</span><span class="price">${discounted ? `<s>${s.basePrice(p)}</s>` : ''}${statIcon('coin', 11)}${s.price(p)}</span>`;
-      button.disabled = s.sold.has(i) || same?.level === 3 || w.money < s.price(p);
+      else if (level >= MAX_WEAPON_LEVEL) button.textContent = '已满阶';
+      else button.innerHTML = `<span>${same ? `升阶 Lv.${level + 1}` : '购买'}</span><span class="price">${discounted ? `<s>${s.listPrice(p, level)}</s>` : ''}${statIcon('coin', 11)}${cost}</span>`;
+      button.disabled = s.sold.has(i) || level >= MAX_WEAPON_LEVEL || w.money < cost;
       button.addEventListener('click', () => { s.buy(i, w); this.render(); this.changed(); }); card.append(button); if (i < 3) cards.append(card); else menu.append(card);
     });
     const details = document.getElementById('store-menu') as HTMLDetailsElement;
