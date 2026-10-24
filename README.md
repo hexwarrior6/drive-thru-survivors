@@ -11,6 +11,8 @@
 - **战斗系统**来自《土豆兄弟 Brotato》：自动射击、波次生存、波间商店、6 槽武器 Build 构筑
 - **数据驱动**来自麦当劳 MCP：真实餐品变身车载武器，真实门店变身赛道站点
 
+**目标用户**：麦当劳粉丝与休闲网页游戏玩家。打开链接即可开玩，无需注册与安装；桌面键盘与手机触屏双适配，适合程序员节等活动现场快速试玩与传播。
+
 ## 文档导航
 
 本项目的所有设计文档均在 `docs/` 目录下，编程 Agent 应按以下顺序阅读：
@@ -50,7 +52,15 @@ npm run preview # 预览生产构建：http://127.0.0.1:4173/
 
 ## 关联项目
 
-- **codex-6.1-sol**（`/Users/zhuyuhao/ZYHCodeSpace/McPitstop/codex-6.1-sol`）：包含可复用的 MCP 网关代码、SVG 美术资产坐标与配色、Web Audio 音效合成方案
+- **codex-6.1-sol**（同作者姊妹项目 McPitstop 的一部分）：本项目复用了其 MCP 网关代码、SVG 美术资产坐标与配色、Web Audio 音效合成方案
+
+## 参赛材料（麦当劳程序员节创意开发大赛）
+
+| 文件 | 说明 |
+|------|------|
+| [CONTEST_DECLARATION.md](CONTEST_DECLARATION.md) | 参赛声明（官方模板，原样保留） |
+| [MCP_INTEGRATION.md](MCP_INTEGRATION.md) | 麦当劳 MCP Server / 工具 / 调用流程 / 业务价值说明 |
+| [workbuddy.md](workbuddy.md) | WorkBuddy 开发对话上下文（WorkBuddy 专项奖励核验用） |
 
 ## 当前实现：阶段 0–5（完整闭环）
 
