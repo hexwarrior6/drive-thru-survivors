@@ -27,17 +27,17 @@ test('identity mapping: same-weaponId dishes feed each other, others replace', (
   // 大小份/别名归入同一身份：喂养同一件武器而不是占第二个槽。
   assert.equal(shop.buy(1, w), 'bought');
   assert.equal(shop.slots[SLOT_FRONT]!.level, 2);
-  // 麦香鱼的专属武器 W04 尚未实装 → 通用改装·前炮，是另一件武器：走替换流程。
+  // 麦香鱼 → 鱼跃跳弹炮（W04 已实装）：另一件前武器 → 走替换流程。
   assert.equal(shop.buy(2, w), 'replace');
 });
 
 test('products route to their mounts; the scatter gun is a real replaceable occupant', () => {
   const shop = setup();
-  shop.offers = [product('巨无霸'), product('板烧鸡腿堡'), product('可口可乐')];
+  shop.offers = [product('巨无霸'), product('板烧鸡腿堡'), product('柠檬红茶')];
   const w = wallet(999);
   assert.equal(shop.weaponFor(shop.offers[0]), 'W01');
   assert.equal(shop.weaponFor(shop.offers[1]), 'W07');
-  assert.equal(shop.weaponFor(shop.offers[2]), 'generic-rear');
+  assert.equal(shop.weaponFor(shop.offers[2]), 'W24');
   assert.equal(shop.slots[SLOT_REAR]?.weaponId, 'scatter', 'run starts with the scatter');
   assert.equal(shop.buy(0, w), 'bought');
   assert.equal(shop.slots[SLOT_FRONT]!.weaponId, 'W01');
@@ -122,9 +122,10 @@ test('upgrade service backs up growth when no material dish is in this store', (
 
 test('featured cards prioritise implemented exclusive weapons over generic fallbacks', () => {
   const shop = setup();
+  const ready = new Set(['W01', 'W02', 'W04', 'W06', 'W07', 'W11', 'W12', 'W13', 'W17', 'W21', 'W24', 'W31']);
   const kinds = shop.offers.slice(0, 3).map(p => shop.weaponFor(p));
-  assert.ok(kinds.every(k => k === 'W01' || k === 'W07' || k === 'W12' || k === 'generic-front' || k === 'generic-rear'));
-  const hasExclusive = shop.offers.slice(0, 3).some(p => ['W01', 'W07', 'W12'].includes(shop.weaponFor(p)));
+  assert.ok(kinds.every(k => ready.has(k) || k === 'generic-front' || k === 'generic-rear'));
+  const hasExclusive = shop.offers.slice(0, 3).some(p => ready.has(shop.weaponFor(p)));
   assert.equal(hasExclusive, true, 'demo menu always surfaces an implemented weapon up front');
 });
 
@@ -154,7 +155,7 @@ test('v5 saves migrate by dish name without inventing branches or credit', () =>
   assert.equal(slots![0]!.level, 3);
   assert.equal(slots![0]!.branch, undefined, 'migration never picks a branch for the player');
   assert.equal(slots![0]!.invested, 0, 'unknown investment grants no replacement credit');
-  assert.equal(slots![1]!.weaponId, 'generic-rear', '未实装的旧后槽武器落到通用改装');
+  assert.equal(slots![1]!.weaponId, 'W17', '旧后槽武器按名字还原成已实装的专属武器');
   // 旧辅助位被动随模块层退役；后槽 starter 还原为初始散弹。
   assert.equal(slots![2], null);
   const scatterRear = migrateV5Slots({ slots: [null, { name: '后置散弹', type: 'starter', level: 1 }, null, null, null] });

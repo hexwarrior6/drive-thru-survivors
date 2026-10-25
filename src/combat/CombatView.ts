@@ -63,6 +63,8 @@ export class CombatView {
       let tint = 0xffffff;
       if (b.kind === 1) tint = b.level >= 3 ? 0xffcf52 : 0xad713a;
       else if (b.kind === 2) tint = 0xffcf52;
+      else if (b.kind === 4) tint = 0xff9d7a;
+      else if (b.kind === 6) tint = 0xffcf52;
       image.setTint(b.tex ? (b.level >= 3 ? 0xffcf52 : 0xffffff) : tint);
       let size = 1;
       if (b.kind === 1 && b.level >= 3) size *= 1.5;
@@ -121,8 +123,8 @@ export class CombatView {
 const DIGITS = ['digit0', 'digit1', 'digit2', 'digit3', 'digit4', 'digit5', 'digit6', 'digit7', 'digit8', 'digit9'];
 const ENEMY_TEXTURES = ['cone', 'cart', 'rider', 'truck'];
 const HIT_TEXTURES = ['cone-hit', 'cart-hit', 'rider-hit', 'truck-hit'];
-/** 弹种默认贴图：0 散弹 · 1 重炮 · 2 薯刃 · 3 直射。 */
-const BULLET_TEXTURES = ['bullet', 'burger-bullet', 'fries-bullet', 'bullet'];
+/** 弹种默认贴图：0 散弹 · 1 重炮 · 2 薯刃 · 3 直射 · 4 火箭 · 5 跳弹 · 6 排射细弹。 */
+const BULLET_TEXTURES = ['bullet', 'burger-bullet', 'fries-bullet', 'bullet', 'missile-bullet', 'burger-bullet', 'fries-bullet'];
 /** Mount barrel tints per installed weaponId so the car shows what is bolted on. */
 const REAR_TINTS: Record<string, number> = { scatter: 0xffffff, W07: 0xe75239, 'generic-rear': 0xd9a24b };
 const FRONT_TINTS: Record<string, number> = { W01: 0xedb355, W12: 0xffcf52, 'service-front': 0x9aa39a, 'generic-front': 0x9aa39a };

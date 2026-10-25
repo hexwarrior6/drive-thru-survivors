@@ -9,7 +9,6 @@ import { DriftPhysics } from '../src/systems/DriftPhysics';
 import { TrackRoute } from '../src/systems/TrackRoute';
 import { themeFor } from '../src/systems/Theme';
 import { clearRun, loadRun, recordRun, saveRun, type RunSave } from '../src/systems/SaveSystem';
-import { weaponById } from '../src/combat/weaponCatalog';
 import { demoSnapshot } from '../src/data/snapshot';
 import { carById } from '../src/data/cars';
 import { BASE_SPEED, FIXED_DT } from '../src/config';
@@ -63,7 +62,7 @@ test('the fourth boss at wave twenty ends the run with victory', () => {
   const boss = c.enemies.items[c.bossSlot];
   assert.ok(boss?.active, 'the final tyrant must spawn');
   assert.equal(w.bossTier, 4);
-  assert.equal(c.bossMaxHp, Math.round(BOSS_HP * 5.8));
+  assert.equal(c.bossMaxHp, Math.round(BOSS_HP * 5.0));
   boss!.hp = 100;
   c.hit(boss!, 99999);
   w.bossDown(0.02);
@@ -214,8 +213,22 @@ test('restore rebuilds the deterministic stop order of a saved run', () => {
   assert.deepEqual(other.bag.map(s => s.id), bagIds);
 });
 
+/** mulberry32: 经济长跑测试用固定种子，模拟不再随 Math.random 波动。 */
+function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /** Scripted run: reactive steering, build-first shopping, repairs under pressure. */
-function driveRun(snapshot = demoSnapshot()) {
+function driveRun(snapshot = demoSnapshot(), seed = 20261026) {
+  const originalRandom = Math.random;
+  Math.random = seededRandom(seed);
+  try {
   const combat = new CombatSystem(silent);
   const wave = new WaveSystem();
   const p = new DriftPhysics();
@@ -273,16 +286,29 @@ function driveRun(snapshot = demoSnapshot()) {
         }
       }
     }
-    // 散弹替换实验（§4.2）：demo 菜单没有实装后武器（W07 等）→ 保持常驻散弹；
-    // 只在真的出现实装后武器时才替换。
-    const readyRear = shop.offers.find(offer => {
-      const def = weaponById(shop.weaponFor(offer));
-      return def.mount === 'rear' && def.ready && def.family !== '通用' && def.family !== '服务'
-        && combat.money >= shop.price(offer, 0);
-    });
-    if (readyRear && shop.slots[1]?.weaponId === 'scatter') {
-      const index = shop.offers.indexOf(readyRear);
-      if (shop.buy(index, combat, 1) === 'bought') purchases++;
+    // 散弹替换（§4.2）：只换成文档 §10 推荐构筑的后武器（雷阵/冰饮/尾焰），
+    // 控场型（W21 脉冲）与细腻型（W13 圆锯）留给真人取舍，不进脚本构筑。
+    const rearPreference = ['W17', 'W24', 'W07'];
+    for (const wid of rearPreference) {
+      // 控场型冰饮只在成长起来后有价值：前武器 Lv4 前保持常驻散弹（§4.2 实验）。
+      if (wid !== 'W17' && (shop.slots[0]?.level ?? 0) < 4) continue;
+      const offer = shop.offers.find(o => shop.weaponFor(o) === wid);
+      if (!offer) continue;
+      const same = shop.equipped(offer);
+      const index = shop.offers.indexOf(offer);
+      if (same) {
+        const price = shop.price(offer, same.level);
+        if (same.level < 5 && combat.money >= price) {
+          const branch = same.level + 1 === 3 ? 'a' : undefined;
+          if (shop.buy(index, combat, -1, branch) === 'bought') purchases++;
+        }
+        break;
+      }
+      if (shop.slots[1]?.weaponId === 'scatter' && combat.money >= shop.price(offer, 0)) {
+        if (shop.buy(index, combat, 1) === 'bought') purchases++;
+        break;
+      }
+      break;
     }
     p.nitro = Math.min(100, p.nitro + 20);
   };
@@ -310,6 +336,9 @@ function driveRun(snapshot = demoSnapshot()) {
         if (enemy.active && enemy.kind === 2 && enemy.z < p.progress && enemy.z > p.progress - 130) closePursuers++;
       }
       input.boost = closePursuers >= 2 && p.nitro >= 20;
+      // 会玩的司机用漂移喂增压器：每 4s 顺着自己要去的方向漂一段（§10 漂移构筑）。
+      const driftPhase = frames % 240;
+      input.drift = driftPhase >= 150 && driftPhase < 195 && Math.abs(input.steer) > 0.25;
       p.step(input, FIXED_DT, route.curvatureAt(p.progress));
       combat.step(p, FIXED_DT);
       weapons.step(p, FIXED_DT);
@@ -358,10 +387,11 @@ function driveRun(snapshot = demoSnapshot()) {
     bossDefeated: combat.bossDefeated,
     waveReached: wave.number,
   };
+  } finally { Math.random = originalRandom; }
 }
 
 test('first round: economy funds the opening build and reaches the wave-five boss (phase-1 gate)', () => {
-  const run = driveRun(demoSnapshot());
+  const run = driveRun(demoSnapshot(), 20261026);
   assert.ok(run.waveReached >= 5, `the run must reach the wave-five boss (reached wave ${run.waveReached}, died at frame ${run.frames})`);
   const band = (w: number, low: number, high: number) =>
     assert.ok(run.income[w] >= low && run.income[w] <= high, `wave ${w} income ${run.income[w]}`);
@@ -379,7 +409,7 @@ test('round-two soak: the full-menu route funds the whole growth path by the sec
   // 「10–15 波」目标），等第二阶段武器池变厚后再校准升阶曲线。
   const snapshot = demoSnapshot();
   snapshot.stores = [snapshot.stores[0]];
-  const run = driveRun(snapshot);
+  const run = driveRun(snapshot, 271828);
   assert.ok(run.waveReached >= 6, `the run must enter the second round (reached wave ${run.waveReached}, frames ${run.frames})`);
   assert.ok(run.bosses >= 1, 'the wave-five boss fight must happen');
   for (const frames of run.bossFrames) assert.ok(frames > 60 && frames < 60 * 240, `each boss fight must be a real fight (${run.bossFrames.join(',')})`);
@@ -391,5 +421,17 @@ test('round-two soak: the full-menu route funds the whole growth path by the sec
   assert.ok(run.frontMaxLevel >= 3, `front firepower must keep growing (got Lv.${run.frontMaxLevel})`);
   assert.ok(run.modules >= 2, `vehicle modules must be affordable by round two (got ${run.modules})`);
   console.log(`soak: waves ${run.waveReached} income [${run.income.slice(1, 8).join(', ')}] frontMax Lv.${run.frontMaxLevel} slots [${run.slots.join(' | ')}] modules ${run.modules} health ${run.health} min ${run.minHealth} repairs ${run.repairs} purchases ${run.spent} kills ${run.kills} bosses ${run.bosses}`);
+  void MODULE_PRICES;
+});
+
+test('twenty waves four bosses: the full-menu route beats the whole route (phase-2 gate)', () => {
+  const snapshot = demoSnapshot();
+  snapshot.stores = [snapshot.stores[0]];
+  const run = driveRun(snapshot, 555777);
+  assert.ok(run.victory, `the scripted run must beat all four bosses (frames ${run.frames}, wave ${run.waveReached}, health ${run.health.toFixed(1)}, min ${run.minHealth.toFixed(1)})`);
+  assert.equal(run.bosses, 4, `the run must field four boss fights (got ${run.bosses})`);
+  for (const frames of run.bossFrames) assert.ok(frames > 60 && frames < 60 * 240, `each boss fight must be a real fight (${run.bossFrames.join(',')})`);
+  assert.ok(run.kills > 1000, `full-route kill volume (got ${run.kills})`);
+  console.log(`full-route: wave ${run.waveReached} slots [${run.slots.join(' | ')}] modules ${run.modules} kills ${run.kills} bosses ${run.bosses} bossFrames [${run.bossFrames.join(',')}] repairs ${run.repairs} min ${run.minHealth.toFixed(1)}`);
   void MODULE_PRICES;
 });

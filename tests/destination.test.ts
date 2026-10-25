@@ -25,19 +25,20 @@ test('implemented weapons top the cards, discovery ranks the rest, whole menu st
   snapshot.stores = [snapshot.stores[0]];
   snapshot.stores[0].products[4].menuPresence = {stores:1,compared:4};
   const shop = new ShopSystem(snapshot,()=>.5);shop.open(1);
-  // §9.2：已实装专属武器的餐品进前三张推荐卡（巨无霸 → W01）。
-  assert.equal(shop.offers[0].name,'巨无霸');
+  // §9.2：已实装专属武器的餐品进前三张推荐卡；发现度最高的可口可乐（W21）领衔。
+  assert.equal(shop.weaponFor(shop.offers[0]), 'W21');
+  assert.equal(shop.offers[0].name,'可口可乐');
   // 餐品发现度继续决定其余卡片的顺序：1/4 门店有售的可口可乐排在其组首位。
-  assert.equal(shop.offers[1].name,'可口可乐');
+  const colaAt = shop.offers.findIndex(p => p.name === '可口可乐');
+  assert.ok(colaAt >= 0);
   assert.equal(shop.offers.length,snapshot.stores[0].products.length);
-  // 可口可乐 → 通用改装·尾炮（W21 未实装），后槽被初始散弹占据 → 显式替换。
-  const colaIndex = shop.offers.findIndex(p => p.name === '可口可乐');
+  // 可口可乐 → 可乐高压脉冲炮（W21 已实装），后槽被初始散弹占据 → 显式替换。
   const wallet={money:1000,health:100};
-  assert.equal(shop.buy(colaIndex,wallet),'replace');
-  assert.equal(shop.buy(colaIndex,wallet,SLOT_REAR),'bought');
+  assert.equal(shop.buy(colaAt,wallet),'replace');
+  assert.equal(shop.buy(colaAt,wallet,SLOT_REAR),'bought');
   assert.ok(shop.slots.some(w=>w?.name==='可口可乐'));
-  assert.match(productHighlight(shop.offers[1]),/1\/4/);
-  assert.ok(!productHighlight(shop.offers[1]).includes('独家'));
+  assert.match(productHighlight(shop.offers[0]),/1\/4/);
+  assert.ok(!productHighlight(shop.offers[0]).includes('独家'));
 });
 test('comparison normalizes names and single-store menus never claim uniqueness', () => {
   assert.equal(normalizeProductName(' 麦咖啡（大杯） '),normalizeProductName('麦咖啡(大杯)'));

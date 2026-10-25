@@ -15,19 +15,43 @@ const BLADE_LIFE = 2.4;
 /** 漂移增压器的蓄能层数上限与单层伤害倍率。 */
 const DRIFT_CHARGE_MAX = 3;
 const DRIFT_CHARGE_MULT = 1.5;
-/** meta 位：bit0 分支a · bit1 分支b · bit2 Lv5 · bit3 甜酸弹墙兼容（发射时判定）。 */
+/** meta 位：bit0 分支a · bit1 分支b · bit2 Lv5 · bit3 甜酸弹墙兼容 · bit4 夹击弹（发射时判定）。 */
 const META_BRANCH_A = 1;
 const META_BRANCH_B = 2;
 const META_LV5 = 4;
 const META_WALL = 8;
+const META_FLANK = 16;
 
 interface TrailSeg { active: boolean; slot: number; x: number; z: number; life: number; dps: number }
+interface MineSeg { active: boolean; slot: number; x: number; z: number; life: number; level: number; meta: number; chainDepth: number }
+interface SawSeg { active: boolean; slot: number; x: number; z: number; life: number; radius: number; dps: number; spin: number }
 
 /** 五槽语义（§4.1）：[0] 前武器 · [1] 后武器 · [2..4] 车辆模块；酱料独立收藏。 */
 export class WeaponSystem {
   readonly trails = new ObjectPool<TrailSeg>(24, slot => ({ active: false, slot, x: 0, z: 0, life: 0, dps: 0 }));
+  readonly mines = new ObjectPool<MineSeg>(12, slot => ({ active: false, slot, x: 0, z: 0, life: 0, level: 1, meta: 0, chainDepth: 0 }));
+  readonly saws = new ObjectPool<SawSeg>(8, slot => ({ active: false, slot, x: 0, z: 0, life: 0, radius: 34, dps: 0, spin: 0 }));
   /** 漂移增压器蓄能层数；有效漂移释放 +1，下一次齐射消耗一层。 */
   driftCharge = 0;
+  /** W06 锁定状态（目标槽位/进度/宽限/道路锚点），供渲染层显示锁定进度。 */
+  lockSlot = -1;
+  lockTime = 0;
+  lockNeed = 2.2;
+  private lockGrace = 0;
+  private lockAnchorX = 0;
+  /** W02 交替炮管；W11 连排状态；W24 锁冻目标；W31 螺旋刃相位。 */
+  private altSide = 1;
+  private volleyRows = 0;
+  private volleyTick = 0;
+  freezeSlot = -1;
+  private sawSide = 1;
+  spiralAngle = 0;
+  spiralPhase = 0;
+  spiralX = 0;
+  spiralZ = 0;
+  spiralR = 0;
+  /** W21 压力环的视觉脉冲衰减。 */
+  pulseFlash = 0;
   private bumperClock = 0;
   private pumpClock = 0;
   private pumpTick = 0;
@@ -79,6 +103,31 @@ export class WeaponSystem {
       return DRIFT_CHARGE_MULT;
     }
     return 1;
+  }
+  /** 引爆一枚雷：范围伤害；连环分支（上限 3 级链）引爆相邻雷；到期回收不掉金币。 */
+  private explodeMine(m: MineSeg, def: WeaponDef, p: DriftPhysics, depth: number, mult: number): void {
+    const c = this.combat;
+    const l = Math.max(0, Math.min(4, m.level - 1));
+    c.blast(m.x, m.z);
+    for (let k = 0; k < c.enemies.capacity; k++) {
+      const victim = c.enemies.items[k];
+      if (!victim.active) continue;
+      const dx = victim.x - m.x, dz = victim.z - m.z;
+      if (dx * dx + dz * dz <= def.range[l] * def.range[l]) c.seasonedHit(victim, def.damage[l] * mult, c.sauceBits);
+    }
+    if ((m.meta & 1) !== 0 && m.level >= 3 && depth < 3) {
+      for (let i = 0; i < this.mines.capacity; i++) {
+        const other = this.mines.items[i];
+        if (!other.active || other === m || other.chainDepth > 0) continue;
+        const dx = other.x - m.x, dz = other.z - m.z;
+        if (dx * dx + dz * dz <= 90 * 90) {
+          other.chainDepth = depth + 1;
+          this.explodeMine(other, def, p, depth + 1, 1);
+        }
+      }
+    }
+    void p;
+    this.mines.release(m);
   }
   private nearestForward(px: number, pz: number, range: number): Enemy | null {
     let target: Enemy | null = null, best = range * range;
@@ -152,7 +201,7 @@ export class WeaponSystem {
           // 压路：贯穿 +2、保留更多伤害；破甲：贯穿降至 1，靠连续命中上破甲。
           b.pierce = branchA ? def.pierce[l] + 2 : branchB ? 1 : def.pierce[l];
           b.targetSlot = -1; b.hitMask.fill(0);
-          b.tex = ''; b.traits = c.sauceBits; b.meta = this.metaFor(w, def);
+          b.tex = def.artKey ?? ''; b.traits = c.sauceBits; b.meta = this.metaFor(w, def);
           b.leg = 0; b.hits = 0; b.age = 0;
           c.prepareBullet(b);
           c.shots++; c.muzzleFlash = 0.08;
@@ -177,7 +226,7 @@ export class WeaponSystem {
             b.vx = Math.sin(a) * def.speed; b.vz = Math.cos(a) * def.speed + p.speed * 0.3;
             b.damage = dmg; b.life = BLADE_LIFE; b.kind = 2; b.level = w.level;
             b.pierce = 9; b.targetSlot = -1; b.hitMask.fill(0);
-            b.tex = ''; b.traits = c.sauceBits; b.meta = this.metaFor(w, def);
+            b.tex = def.artKey ?? ''; b.traits = c.sauceBits; b.meta = this.metaFor(w, def);
             b.leg = 0; b.hits = 0; b.age = 0;
             c.prepareBullet(b);
           }
@@ -269,6 +318,243 @@ export class WeaponSystem {
           w.cooldown = def.interval[l] * c.rateMult;
           break;
         }
+        case 'alternating': {
+          if (w.cooldown > 0) break;
+          const range = def.range[l];
+          const target = this.nearestForward(x, p.progress, range); if (!target) break;
+          const speed = def.speed;
+          const angle = this.leadAngle(target, x, p.progress, speed);
+          this.altSide = -this.altSide;
+          const b = c.bullets.acquire(); if (!b) break;
+          let meta = this.metaFor(w, def);
+          if (!branchB) meta |= META_FLANK;
+          b.x = b.px = x + this.altSide * 12; b.z = b.pz = p.progress + 30;
+          b.vx = Math.sin(angle) * speed; b.vz = Math.cos(angle) * speed + p.speed * 0.3;
+          b.damage = def.damage[l] * this.spendCharge();
+          b.life = range / speed; b.kind = 3; b.level = w.level;
+          b.pierce = 1; b.targetSlot = -1; b.hitMask.fill(0);
+          b.tex = def.artKey ?? ''; b.traits = c.sauceBits; b.meta = meta;
+          b.leg = 0; b.hits = 0; b.age = 0;
+          c.prepareBullet(b);
+          c.shots++; c.muzzleFlash = 0.08;
+          w.cooldown = def.interval[l] * (branchB ? (w.level >= 5 ? 0.7 : 0.78) : 1) * c.rateMult;
+          break;
+        }
+        case 'jumper': {
+          if (w.cooldown > 0) break;
+          const range = def.range[l];
+          const target = this.nearestForward(x, p.progress, range); if (!target) break;
+          const speed = def.speed;
+          const angle = this.leadAngle(target, x, p.progress, speed);
+          const b = c.bullets.acquire(); if (!b) break;
+          b.x = b.px = x; b.z = b.pz = p.progress + 30;
+          b.vx = Math.sin(angle) * speed; b.vz = Math.cos(angle) * speed + p.speed * 0.3;
+          b.damage = def.damage[l] * this.spendCharge();
+          b.life = range / speed + 0.8; b.kind = 5; b.level = w.level;
+          // pierce 作为跳跃预算：命中后侧跳新目标，逐跳衰减。
+          b.pierce = def.pierce[l] + (branchA && w.level >= 3 ? 2 : 0) + (branchA && w.level >= 5 ? 1 : 0);
+          b.targetSlot = -1; b.hitMask.fill(0);
+          b.tex = def.artKey ?? ''; b.traits = c.sauceBits; b.meta = this.metaFor(w, def);
+          b.leg = 0; b.hits = 0; b.age = 0;
+          c.prepareBullet(b);
+          c.shots++; c.muzzleFlash = 0.08;
+          w.cooldown = def.interval[l] * c.rateMult;
+          break;
+        }
+        case 'rocket': {
+          // 锁定区相对道路：目标大幅横移（霸王侧撞）才打断，玩家普通转弯不打断。
+          const range = def.range[l];
+          let target: Enemy | null = null;
+          const boss = c.bossSlot >= 0 ? c.enemies.items[c.bossSlot] : null;
+          if (boss && boss.active && boss.z > p.progress) target = boss;
+          else target = this.nearestForward(x, p.progress, range);
+          if (target && Math.hypot(target.x - x, target.z - p.progress) <= range) {
+            if (this.lockSlot !== target.slot) {
+              this.lockSlot = target.slot; this.lockTime = 0; this.lockAnchorX = target.x; this.lockGrace = 0;
+            } else if (Math.abs(target.x - this.lockAnchorX) > 90) {
+              this.lockGrace += dt;
+              if (this.lockGrace > 0.5) { this.lockTime = 0; this.lockAnchorX = target.x; this.lockGrace = 0; }
+            } else {
+              this.lockGrace = 0;
+              this.lockTime += dt;
+            }
+            this.lockNeed = Math.max(1.2, 2.2 - l * 0.15);
+            if (this.lockTime >= this.lockNeed && w.cooldown <= 0) {
+              let count = def.count[l] + (branchB && w.level >= 3 ? 1 : 0) + (branchB && w.level >= 5 ? 1 : 0);
+              const dmg = def.damage[l] * (branchA ? 1.25 : 1) * this.spendCharge();
+              const second = branchB && w.level >= 3 ? this.nearestForward(x, p.progress, range) : null;
+              for (let j = 0; j < count; j++) {
+                const b = c.bullets.acquire(); if (!b) break;
+                const a = (j - (count - 1) / 2) * 0.12;
+                b.x = b.px = x; b.z = b.pz = p.progress + 26;
+                b.vx = Math.sin(a) * def.speed; b.vz = Math.cos(a) * def.speed + p.speed * 0.3;
+                b.damage = dmg; b.life = range / def.speed + 0.8; b.kind = 4; b.level = w.level;
+                b.pierce = 1; b.targetSlot = second && (j & 1) === 1 ? second.slot : this.lockSlot;
+                b.hitMask.fill(0);
+                b.tex = def.artKey ?? ''; b.traits = c.sauceBits; b.meta = this.metaFor(w, def);
+                b.leg = 0; b.hits = 0; b.age = 0;
+                c.prepareBullet(b);
+                c.shots++;
+              }
+              c.muzzleFlash = 0.1;
+              w.cooldown = def.interval[l] * c.rateMult;
+              this.lockTime = 0; // 齐射后重新积累锁定：抓走线窗口的节奏
+            }
+          } else {
+            this.lockSlot = -1; this.lockTime = 0; this.lockGrace = 0;
+          }
+          break;
+        }
+        case 'volley': {
+          if (this.volleyRows > 0) {
+            this.volleyTick -= dt;
+            if (this.volleyTick <= 0) {
+              this.volleyTick = 0.11;
+              this.volleyRows--;
+              const cols = def.count[l] + (branchA && w.level >= 3 ? 1 : 0) + (branchA && w.level >= 5 ? 1 : 0);
+              const dmg = def.damage[l] * (branchB && w.level >= 3 ? 0.9 : 1) * this.spendCharge();
+              const target = this.nearestForward(x, p.progress, def.range[l]);
+              const angle = target ? this.leadAngle(target, x, p.progress, def.speed) : 0;
+              for (let j = 0; j < cols; j++) {
+                const b = c.bullets.acquire(); if (!b) break;
+                const off = (j - (cols - 1) / 2) * 46;
+                b.x = b.px = x + off; b.z = b.pz = p.progress + 28;
+                b.vx = Math.sin(angle) * def.speed; b.vz = Math.cos(angle) * def.speed + p.speed * 0.3;
+                b.damage = dmg; b.life = def.range[l] / def.speed; b.kind = 6; b.level = w.level;
+                b.pierce = 1; b.targetSlot = -1; b.hitMask.fill(0);
+                b.tex = def.artKey ?? ''; b.traits = c.sauceBits; b.meta = this.metaFor(w, def);
+                b.leg = 0; b.hits = 0; b.age = 0;
+                c.prepareBullet(b);
+              }
+              c.shots++; c.muzzleFlash = 0.06;
+            }
+            break;
+          }
+          if (w.cooldown > 0) break;
+          this.volleyRows = 3 + (branchB && w.level >= 3 ? 2 : 0) + (branchB && w.level >= 5 ? 1 : 0);
+          this.volleyTick = 0;
+          w.cooldown = def.interval[l] * c.rateMult;
+          break;
+        }
+        case 'saw': {
+          if (w.cooldown > 0) break;
+          const saw = this.saws.acquire();
+          if (saw) {
+            const twin = branchB && w.level >= 3;
+            this.sawSide = -this.sawSide;
+            saw.x = x + (twin ? this.sawSide * 40 : 0);
+            saw.z = p.progress - 26;
+            saw.life = w.level + 2.5 + (branchA ? 1 : 0);
+            saw.radius = def.range[l] * (branchA && w.level >= 3 ? 1.4 : twin ? 0.75 : 1);
+            saw.dps = def.damage[l] * (branchA && w.level >= 3 ? 0.8 : twin ? 1.1 : 1) * (branchA && w.level >= 5 ? 1.3 : 1);
+            saw.spin = 0;
+          }
+          w.cooldown = def.interval[l] * c.rateMult;
+          break;
+        }
+        case 'mine': {
+          if (w.cooldown > 0) break;
+          const mine = this.mines.acquire();
+          if (mine) {
+            mine.x = x; mine.z = p.progress - 24;
+            mine.life = 9; mine.level = w.level; mine.meta = this.metaFor(w, def); mine.chainDepth = 0;
+          }
+          w.cooldown = def.interval[l] * c.rateMult;
+          break;
+        }
+        case 'pulse': {
+          if (w.cooldown > 0) break;
+          const range = def.range[l] * (branchA && w.level >= 3 ? 1.4 : 1);
+          const push = (30 + l * 6) * (branchA && w.level >= 3 ? 1.5 : 1);
+          for (let j = 0; j < c.enemies.capacity; j++) {
+            const e = c.enemies.items[j]; if (!e.active) continue;
+            const dx = e.x - x, dz = e.z - p.progress, d = Math.hypot(dx, dz);
+            if (d > range) continue;
+            e.x += dx / Math.max(1, d) * push; e.z += dz / Math.max(1, d) * push;
+            c.seasonedHit(e, def.damage[l], c.sauceBits);
+            if (!e.active) continue;
+            if (branchB && w.level >= 3) {
+              e.slow = Math.min(e.slow, 0.6); e.slowTime = 1.2;
+              if (w.level >= 5) c.hit(e, 6);
+            }
+            // 推撞：被推开的敌人压到同伙，双方连带掉血（§5 目录 W21）。
+            for (let k = 0; k < c.enemies.capacity; k++) {
+              const other = c.enemies.items[k];
+              if (other.active && other !== e && Math.hypot(other.x - e.x, other.z - e.z) < 42) {
+                c.hit(other, def.damage[l] * 0.8);
+                if (e.active) c.hit(e, def.damage[l] * 0.8);
+                break;
+              }
+            }
+          }
+          this.pulseFlash = 1;
+          w.cooldown = def.interval[l] * c.rateMult;
+          break;
+        }
+        case 'freeze': {
+          if (branchB && w.level >= 3) {
+            // 冰雾路障：放弃单体冻结，改为后方范围持续缓速（§5.6 分支）。
+            if (w.cooldown > 0) break;
+            const range = def.range[l] * (w.level >= 5 ? 1.3 : 1);
+            for (let j = 0; j < c.enemies.capacity; j++) {
+              const e = c.enemies.items[j]; if (!e.active) continue;
+              const dx = e.x - x, dz = e.z - p.progress;
+              if (dz > 40 || Math.hypot(dx, dz) > range) continue;
+              e.slow = Math.min(e.slow, 0.6); e.slowTime = 1.2;
+              c.seasonedHit(e, def.damage[l] * 0.6, c.sauceBits);
+            }
+            w.cooldown = 0.5 * c.rateMult;
+            break;
+          }
+          if (w.cooldown > 0) break;
+          // 锁定最迫近的后侧威胁（§5.6）：追兵可完整冻结，霸王只吃软控。
+          let target: Enemy | null = null, best = def.range[l] * def.range[l];
+          for (let j = 0; j < c.enemies.capacity; j++) {
+            const e = c.enemies.items[j];
+            if (!e.active || (e.kind !== 2 && e.kind !== 3) || e.z >= p.progress) continue;
+            const dx = e.x - x, dz = e.z - p.progress, d2 = dx * dx + dz * dz;
+            if (d2 < best) { target = e; best = d2; }
+          }
+          if (!target) break;
+          // 已冻结的目标跳过积累：冻住后是玩家的撞碎/脱身窗口，续冻会让控制永不解除。
+          if (target.frozen) break;
+          if (target.chillResist > 0) { w.cooldown = def.interval[l]; break; }
+          if (this.freezeSlot !== target.slot) { this.freezeSlot = target.slot; target.chill = 0; }
+          const buildup = Math.max(1.2, 2.6 - l * 0.25) * (branchA && w.level >= 3 ? 0.7 : 1);
+          target.chill += 100 * def.interval[l] / buildup;
+          c.seasonedHit(target, def.damage[l], c.sauceBits);
+          if (target.chill >= 100) {
+            if (target.kind === 3) {
+              // Boss 不完整冻结：只短暂软控，寒意部分保留可再次积累。
+              target.slow = Math.min(target.slow, 0.55); target.slowTime = 1.5; target.chill = 55;
+            } else {
+              target.frozen = true; target.slow = 0;
+              target.slowTime = 1.5 + l * 0.25 + (branchA ? 1 : 0) + (w.level >= 5 && branchA ? 0.5 : 0);
+              target.chill = 0;
+            }
+          }
+          w.cooldown = def.interval[l] * c.rateMult;
+          break;
+        }
+        case 'spiral': {
+          const rot = (2.6 + l * 0.3) * (branchB && w.level >= 3 ? 1.5 : branchA && w.level >= 3 ? 0.8 : 1);
+          this.spiralAngle += rot * dt;
+          this.spiralPhase += dt * (0.9 + l * 0.08) * (branchA && w.level >= 3 ? 1.15 : 1);
+          const near = def.range[l] * 0.55;
+          const far = def.range[l] + 26 + (branchA && w.level >= 5 ? def.range[l] * 0.3 : 0);
+          const radius = near + (far - near) * (0.5 + 0.5 * Math.sin(this.spiralPhase));
+          const bx = x + Math.cos(this.spiralAngle) * radius * 0.8;
+          const bz = p.progress - 30 + Math.sin(this.spiralAngle) * radius * 0.55;
+          this.spiralX = bx; this.spiralZ = bz; this.spiralR = radius;
+          for (let j = 0; j < c.enemies.capacity; j++) {
+            const e = c.enemies.items[j]; if (!e.active || e.grindCd > 0) continue;
+            const dx = e.x - bx, dz = e.z - bz;
+            if (dx * dx + dz * dz > 22 * 22) continue;
+            c.seasonedHit(e, def.damage[l], c.sauceBits);
+            if (e.active) e.grindCd = branchB && w.level >= 5 ? 0.25 : branchB && w.level >= 3 ? 0.35 : 0.5;
+          }
+          break;
+        }
         case 'spray': {
           if (w.cooldown > 0) break;
           const range = def.range[l];
@@ -283,6 +569,51 @@ export class WeaponSystem {
           w.cooldown = def.interval[l] * c.rateMult;
           break;
         }
+      }
+    }
+    this.pulseFlash = Math.max(0, this.pulseFlash - dt * 2.5);
+    // ---- 麦乐鸡雷阵（W17）：接触引爆；连环分支引相邻雷；黏附分支掷向重型目标。 ----
+    for (let i = 0; i < this.mines.capacity; i++) {
+      const m = this.mines.items[i]; if (!m.active) continue;
+      m.life -= dt;
+      if (m.life <= 0 || m.z < p.progress - 450) { this.mines.release(m); continue; }
+      const l = Math.max(0, Math.min(4, m.level - 1));
+      const mdef = weaponById('W17');
+      const chain = (m.meta & 1) !== 0 && m.level >= 3;
+      const sticky = (m.meta & 2) !== 0 && m.level >= 3;
+      if (sticky && m.chainDepth === 0) {
+        // 黏附重雷：重型目标（购物车）进入近后方区域，最近一枚雷掷向它。
+        let heavy: Enemy | null = null, heavyD = 170 * 170;
+        for (let j = 0; j < c.enemies.capacity; j++) {
+          const e = c.enemies.items[j];
+          if (!e.active || e.kind !== 1 || e.z >= p.progress) continue;
+          const dz = e.z - p.progress, d2 = dz * dz;
+          if (d2 < heavyD) { heavy = e; heavyD = d2; }
+        }
+        if (heavy) {
+          m.x = heavy.x; m.z = heavy.z;
+          this.explodeMine(m, mdef, p, 0, 1.4);
+          continue;
+        }
+      }
+      for (let j = 0; j < c.enemies.capacity; j++) {
+        const e = c.enemies.items[j];
+        // 36px 接触圈：突进后贴在车尾的骑手（-30px）也必然踩到刚放下的雷。
+        if (!e.active || Math.hypot(e.x - m.x, e.z - m.z) > 36) continue;
+        this.explodeMine(m, mdef, p, 0, 1);
+        break;
+      }
+      void chain; void l;
+    }
+    // ---- 薯饼后置圆锯（W13）：留在道路坐标持续切割，到期消失。 ----
+    for (let i = 0; i < this.saws.capacity; i++) {
+      const saw = this.saws.items[i]; if (!saw.active) continue;
+      saw.life -= dt; saw.spin += dt * 3;
+      if (saw.life <= 0 || saw.z < p.progress - 450) { this.saws.release(saw); continue; }
+      for (let j = 0; j < c.enemies.capacity; j++) {
+        const e = c.enemies.items[j]; if (!e.active) continue;
+        const dx = e.x - saw.x, dz = e.z - saw.z;
+        if (dx * dx + dz * dz <= saw.radius * saw.radius) c.hit(e, saw.dps * dt);
       }
     }
     // ---- 火带结算：接触持续灼烧，取最强灼烧来源并刷新时间。 ----
@@ -302,11 +633,16 @@ export class WeaponSystem {
     }
   }
   clear(): void {
-    this.trails.clear();
+    this.trails.clear(); this.mines.clear(); this.saws.clear();
     this.driftCharge = 0;
     this.bumperClock = this.pumpClock = this.pumpTick = 0;
     this.cremaCd = this.trailTick = 0;
     this.overheat = this.hotTime = this.hotBoost = 0;
     this.catchStreak = this.catchFlag = 0;
+    this.lockSlot = -1; this.lockTime = 0; this.lockGrace = 0;
+    this.altSide = 1; this.volleyRows = 0; this.volleyTick = 0;
+    this.freezeSlot = -1; this.sawSide = 1;
+    this.spiralAngle = this.spiralPhase = this.spiralX = this.spiralZ = this.spiralR = 0;
+    this.pulseFlash = 0;
   }
 }

@@ -42,7 +42,7 @@ export function waveDuration(wave: number): number { return Math.min(50, 42 + (w
  * 武器系统重构后火力池更强调身份与取舍（数值节奏见 WEAPON_SYSTEM_REDESIGN §9.4），
  * 斜率与玩家成长曲线同步放缓。
  */
-export function enemyHpScale(wave: number): number { return 1 + (wave - 1) * 0.10; }
+export function enemyHpScale(wave: number): number { return 1 + (wave - 1) * 0.085; }
 
 /** 碰撞基础伤害：路锥 5 / 购物车与骑手 9 / Boss 14，随波升到约 ×1.86（第 20 波）。 */
 const CONTACT_BASE = [5, 9, 9, 14] as const;
@@ -52,14 +52,15 @@ export function contactDamage(kind: number, wave: number): number {
 
 /** 常规波前方路障间隔：1.30s → 0.62s（约第 14 波触底）。武器系统重构后
  *  原型期火力池没有旧版的全场清场工具，刷怪坡度随之放缓（§9.4 校准）。 */
-export function hazardInterval(wave: number): number { return Math.max(0.62, 1.35 - wave * 0.055); }
+export function hazardInterval(wave: number): number { return Math.max(0.68, 1.35 - wave * 0.055); }
 /** 常规波追兵包间隔（开场 15 秒后）：4.45s → 3.4s。 */
 export function pursuitInterval(wave: number): number { return Math.max(3.4, 4.6 - wave * 0.15); }
 /** 追兵包规模：第 1-4 波 2 骑（教学期），第 5 波起 3 骑，10 波起 4 骑封顶。 */
 export function pursuitPack(wave: number): number { return Math.min(4, 2 + Math.floor(wave / 5)); }
 
-/** Boss 档位参数：血量 1050 → 6090，行为逐档更凶。 */
-export function bossHpScale(tier: number): number { return [1, 2.2, 3.6, 5.8][Math.max(0, Math.min(3, tier - 1))]; }
+/** Boss 档位参数：血量 1050 → 5250，行为逐档更凶（武器重构后前炮对滑行
+ *  Boss 的有效命中率校准，档位曲线同步放缓）。 */
+export function bossHpScale(tier: number): number { return [1, 2.1, 3.3, 5.0][Math.max(0, Math.min(3, tier - 1))]; }
 /** Boss 波中路障间隔：2.1s → 1.2s。 */
 export function bossHazardInterval(tier: number): number { return Math.max(0.9, 2.1 - (tier - 1) * 0.3); }
 /** Boss 波中追兵包间隔：8.5s → 4.0s。 */

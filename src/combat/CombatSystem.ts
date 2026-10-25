@@ -30,6 +30,12 @@ export interface Enemy {
   hp: number; flash: number; contact: number; vx: number; vz: number; slow: number; slowTime: number; burn: number; burnDamage: number;
   /** 夹心破甲：剩余时长与连续命中计数（命中其他来源或破甲到期时清零）。 */
   armorBreak: number; armorHits: number;
+  /** 双联交错炮的夹击窗口：窗口内再命中同一目标触发夹击加成。 */
+  flankTime: number; flankStreak: number;
+  /** 冰茶锁冻器的寒意累积（0-100）与解冻后的短暂控制抗性。 */
+  chill: number; chillResist: number; frozen: boolean;
+  /** 圆锯/螺旋刃等近身磨切的每目标命中冷却。 */
+  grindCd: number;
   /** Boss state machine: 0 cruise, 1 telegraph, 2 slam dash, 3 recover. Riders reuse it: 0 hover, 1 lunge, 2 recover. */
   phase: number; timer: number; tx: number; throwCd: number;
 }
@@ -59,7 +65,7 @@ export interface Damage {
 export interface CombatEffects { explode(x: number, z: number, kind: number): void }
 /** Simulation owns no Phaser objects. Every slot, free list and grid cell is allocated at startup. */
 export class CombatSystem {
-  readonly enemies = new ObjectPool<Enemy>(128, slot => ({ active: false, slot, kind: 0, x: 0, z: 0, px: 0, pz: 0, hp: 0, flash: 0, contact: 0, vx: 0, vz: 0, slow: 1, slowTime: 0, burn: 0, burnDamage: 0, armorBreak: 0, armorHits: 0, phase: 0, timer: 0, tx: 0, throwCd: 0 }));
+  readonly enemies = new ObjectPool<Enemy>(128, slot => ({ active: false, slot, kind: 0, x: 0, z: 0, px: 0, pz: 0, hp: 0, flash: 0, contact: 0, vx: 0, vz: 0, slow: 1, slowTime: 0, burn: 0, burnDamage: 0, armorBreak: 0, armorHits: 0, flankTime: 0, flankStreak: 0, chill: 0, chillResist: 0, frozen: false, grindCd: 0, phase: 0, timer: 0, tx: 0, throwCd: 0 }));
   readonly bullets = new ObjectPool<Bullet>(256, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, damage: PELLET_DAMAGE, kind: 0, level: 1, pierce: 1, targetSlot: -1, hitMask: new Uint8Array(128), tex: '', traits: 0, meta: 0, leg: 0, hits: 0, age: 0 }));
   readonly coins = new ObjectPool<Coin>(128, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, value: 0, magnet: false }));
   readonly damage = new ObjectPool<Damage>(64, slot => ({ active: false, slot, x: 0, z: 0, life: 0, value: 0 }));
@@ -120,6 +126,8 @@ export class CombatSystem {
     e.kind = kind; e.x = e.px = x; e.z = e.pz = z;
     e.slow = 1; e.slowTime = e.burn = e.burnDamage = 0;
     e.armorBreak = 0; e.armorHits = 0;
+    e.flankTime = 0; e.flankStreak = 0;
+    e.chill = 0; e.chillResist = 0; e.frozen = false; e.grindCd = 0;
     e.hp = kind === 3 ? Math.round(BOSS_HP * bossHpScale(this.bossTier)) : Math.round(ENEMY_HP[kind] * this.hpScale);
     e.flash = e.contact = 0; e.phase = 0; e.timer = 0; e.tx = 0; e.throwCd = 2.4;
     // Riders line up behind the car briefly before their first lunge; a lone rider
@@ -200,6 +208,26 @@ export class CombatSystem {
       if (e.active && e !== origin && Math.hypot(e.x - origin.x, e.z - origin.z) <= radius) this.hit(e, amount);
     }
   }
+  /** 鱼跃跳弹的侧跳：优先横向错开的新目标（邻接敌群收益），逐跳衰减由调用方处理。 */
+  private hopBullet(b: Bullet, struck: Enemy): boolean {
+    // 两轮最近搜索：优先横向错开 24px 以上的新目标（敌群收益），否则就近起跳。
+    let lateralTarget: Enemy | null = null, lateralD2 = 340 * 340;
+    let anyTarget: Enemy | null = null, anyD2 = 340 * 340;
+    for (let i = 0; i < this.enemies.capacity; i++) {
+      const e = this.enemies.items[i];
+      if (!e.active || b.hitMask[e.slot]) continue;
+      const dx = e.x - struck.x, dz = e.z - struck.z, d2 = dx * dx + dz * dz;
+      if (Math.abs(dx) > 24 && d2 < lateralD2) { lateralTarget = e; lateralD2 = d2; }
+      if (d2 < anyD2) { anyTarget = e; anyD2 = d2; }
+    }
+    const target = lateralTarget ?? anyTarget;
+    if (!target) return false;
+    const speed = Math.hypot(b.vx, b.vz);
+    const dx = target.x - b.x, dz = target.z - b.z;
+    const length = Math.max(1, Math.hypot(dx, dz));
+    b.vx = dx / length * speed; b.vz = dz / length * speed;
+    return true;
+  }
   /** Kill streak with timed decay and milestone coin bonuses. */
   private bumpCombo(x: number, z: number): void {
     this.combo++; this.comboTimer = 3.5;
@@ -244,7 +272,15 @@ export class CombatSystem {
       e.px = e.x; e.pz = e.z;
       e.flash = Math.max(0, e.flash - dt); e.contact = Math.max(0, e.contact - dt);
       e.slowTime = Math.max(0, e.slowTime - dt);
-      if (e.slowTime === 0) e.slow = 1;
+      if (e.slowTime === 0) {
+        if (e.frozen) { e.frozen = false; e.chillResist = 4; }
+        e.slow = 1;
+      }
+      e.flankTime = Math.max(0, e.flankTime - dt);
+      if (e.flankTime === 0) e.flankStreak = 0;
+      e.chillResist = Math.max(0, e.chillResist - dt);
+      e.grindCd = Math.max(0, e.grindCd - dt);
+      e.chill = Math.max(0, e.chill - 8 * dt);
       e.armorBreak = Math.max(0, e.armorBreak - dt);
       // 命中计数跨弹累积（「连续命中」）；触发破甲时清零（见弹丸命中路径），
       // 因此破甲到期后自然从零重计，不需要逐帧重置。
@@ -302,6 +338,9 @@ export class CombatSystem {
         // Chilled truck slides at half effectiveness; it is never fully frozen.
         const glide = e.slow < 1 ? 0.55 : 1;
         e.x += e.vx * dt * glide; e.z += e.vz * dt;
+        // 卡车必须留在路面上：急刹横冲的滑行惯性不允许把它甩出道路（可读性/公平性）。
+        if (e.x < -150) { e.x = -150; if (e.vx < 0) e.vx = 0; }
+        if (e.x > 150) { e.x = 150; if (e.vx > 0) e.vx = 0; }
         if (e.throwCd <= 0) {
           e.throwCd = bossThrowInterval(tier);
           const coneX = Math.max(-138, Math.min(138, carX));
@@ -322,7 +361,10 @@ export class CombatSystem {
         const cx = Math.max(Math.abs(side) - 24, 0), cz = Math.max(Math.abs(forward) - 34, 0);
         if (cx * cx + cz * cz <= ENEMY_RADIUS[e.kind] ** 2) {
           e.contact = 0.5; this.lastRamDamage = CombatSystem.ramDamage(p);
-          this.hit(e, this.lastRamDamage); this.impact = 1;
+          // 冰冻撞碎（§5.6/§12.2）：显式允许的联动，最多一次冰爆，不递归冻结。
+          const shatter = e.frozen && e.slow === 0;
+          this.hit(e, this.lastRamDamage * (shatter ? 2 : 1)); this.impact = 1;
+          if (shatter && !e.active) this.iceBurst(e);
           // Guided pit entry plows through leftover hazards on rails without hurting the car.
           if (this.invincible === 0 && p.pulseTime === 0 && p.nitroTime === 0 && !this.entering) {
             this.hurt(contactDamage(e.kind, this.wave));
@@ -350,6 +392,19 @@ export class CombatSystem {
       b.px = b.x; b.pz = b.z; b.x += b.vx * dt; b.z += b.vz * dt; b.life -= dt;
       // Sweet-and-sour only steers wall-capable ballistics off the road edges.
       if ((b.meta & 8) !== 0 && ((b.x > SAUCE.wallBound && b.vx > 0) || (b.x < -SAUCE.wallBound && b.vx < 0))) b.vx = -b.vx;
+      if (b.kind === 4) {
+        // 麦辣标记火箭：有限转向率追踪锁定目标，不等于瞬间命中。
+        const locked = b.targetSlot >= 0 ? this.enemies.items[b.targetSlot] : null;
+        if (locked && locked.active) {
+          const wanted = Math.atan2(locked.x - b.x, locked.z - b.z);
+          const current = Math.atan2(b.vx, b.vz);
+          let diff = wanted - current;
+          if (diff > Math.PI) diff -= Math.PI * 2; else if (diff < -Math.PI) diff += Math.PI * 2;
+          const turn = Math.max(-3.2 * dt, Math.min(3.2 * dt, diff));
+          const speed = Math.hypot(b.vx, b.vz);
+          b.vx = Math.sin(current + turn) * speed; b.vz = Math.cos(current + turn) * speed;
+        }
+      }
       if (b.kind === 2) {
         // 扭扭薯回旋刃：去程飞满后折返车身，回程清空命中账本重新记账。
         b.age += dt;
@@ -390,7 +445,25 @@ export class CombatSystem {
       }
       if (target) {
         b.hitMask[target.slot] = 1;
-        this.seasonedHit(target, b.damage, b.traits);
+        // 双联交错炮夹击：窗口内再命中同一目标伤害加成（第二发起算）。
+        let amount = b.damage;
+        if ((b.meta & 16) !== 0 && target.flankTime > 0 && target.flankStreak >= 1) amount *= (b.meta & 1) !== 0 ? 1.8 : 1.6;
+        if ((b.meta & 16) !== 0) {
+          target.flankStreak = target.flankTime > 0 ? target.flankStreak + 1 : 1;
+          target.flankTime = (b.meta & 1) !== 0 ? 2 : 1.2;
+        }
+        this.seasonedHit(target, amount, b.traits);
+        if (b.kind === 5) {
+          // 鱼跃跳弹：侧跳向邻近新目标，逐跳衰减；跳尽或无目标即落地。
+          if (b.pierce > 1 && this.hopBullet(b, target)) {
+            b.pierce--;
+            if ((b.meta & 2) !== 0) this.sauceSplash(target, b.damage * 0.4, (b.meta & 4) !== 0 ? 64 : 45);
+            b.damage *= (b.meta & 1) !== 0 ? 0.85 : 0.75;
+            continue;
+          }
+          this.bullets.release(b);
+          continue;
+        }
         if (b.kind === 1) {
           // 巨堡贯穿炮：每穿一名敌人伤害按分支保留率衰减；破甲分支累计命中。
           b.damage *= (b.meta & 1) !== 0 ? PIERCE_RETAIN_ROAD : PIERCE_RETAIN;
@@ -399,6 +472,11 @@ export class CombatSystem {
             target.armorHits++;
             if (target.armorHits >= 2) { target.armorBreak = ARMOR_BREAK_TIME; target.armorHits = 0; }
           }
+        }
+        if (b.kind === 4 && (b.meta & 2) !== 0 && target.active) {
+          // 麦辣标记火箭（单点破甲分支）：命中施加破甲，全武器增伤。
+          target.armorHits++;
+          if (target.armorHits >= 2) { target.armorBreak = ARMOR_BREAK_TIME; target.armorHits = 0; }
         }
         if (hasSauce(b.traits, 'ketchup')) this.sauceSplash(target, b.damage * SAUCE.splashShare, SAUCE.splashRadius);
         if (--b.pierce <= 0) {
@@ -434,6 +512,16 @@ export class CombatSystem {
       if (c.life <= 0 || c.z < p.progress - 450) this.coins.release(c);
     }
     if (p.hitWall !== 0 && this.invincible === 0 && p.nitroTime === 0) this.hurt(3);
+  }
+  /** 武器层部署物的爆炸表现入口（雷阵/冰爆共用粒子爆发）。 */
+  blast(x: number, z: number): void { this.effects.explode(x, z, 0); }
+  /** 冻结撞碎的冰爆：一次性范围伤害，不再施加冰冻（§12.2 防递归）。 */
+  private iceBurst(origin: Enemy): void {
+    this.effects.explode(origin.x, origin.z, 0);
+    for (let i = 0; i < this.enemies.capacity; i++) {
+      const e = this.enemies.items[i];
+      if (e.active && Math.hypot(e.x - origin.x, e.z - origin.z) <= 100) this.hit(e, 20);
+    }
   }
   private hurt(amount: number): void {
     if (this.combo > 1) { this.combo = this.combo >> 1; this.comboTier = 0; this.comboTimer = 1.5; }

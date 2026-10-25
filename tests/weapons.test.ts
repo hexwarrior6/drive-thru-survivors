@@ -47,7 +47,7 @@ test('catalog keeps 32 promised slots plus service entries; prototypes are ready
   const catalog = WEAPONS.filter(w => /^W\d+$/.test(w.id));
   assert.equal(catalog.length, 32);
   const ready = catalog.filter(w => w.ready);
-  assert.deepEqual(ready.map(w => w.id).sort(), ['W01', 'W07', 'W12']);
+  assert.deepEqual(ready.map(w => w.id).sort(), ['W01', 'W02', 'W04', 'W06', 'W07', 'W11', 'W12', 'W13', 'W17', 'W21', 'W24', 'W31']);
   for (const w of ready) {
     assert.ok(w.blurb.includes('；'), `${w.id} needs a behaviour+weakness blurb`);
     assert.ok(w.branches && w.branches.length === 2, `${w.id} needs two Lv.3 branches`);
@@ -61,12 +61,14 @@ test('food identity keeps recipe words and demotes unimplemented weapons explici
   assert.equal(identityFor('板烧鸡腿堡', 'main').weaponId, 'W07');
   // 大小份/别名归入同一身份：中薯与大薯不制造两件武器。
   assert.equal(identityFor('中薯条', 'side').id, identityFor('大薯条', 'side').id);
-  // 目标武器未实装 → 显式落到对应挂载的通用改装，绝不冒领专属身份。
+  // 已实装的身份返回真实武器；未实装的（双层吉士 W02 已实装，改用吉士汉堡 W03 等）
   assert.equal(identityFor('麦香鱼', 'main').weaponId, 'W04');
+  assert.equal(identityFor('麦乐鸡', 'side').weaponId, 'W17');
   const shop = new ShopSystem(demoSnapshot(), () => .5);
-  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '麦香鱼' }), 'generic-front');
-  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '麦乐鸡' }), 'generic-rear');
-  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '柠檬红茶' }), 'generic-rear');
+  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '麦香鱼' }), 'W04');
+  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '吉士汉堡' }), 'generic-front');
+  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '鸡米花' }), 'generic-rear');
+  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '浓缩咖啡' }), 'W27'.replace('W27', 'generic-front'));
 });
 
 // ---- W01 巨堡贯穿炮：直线贯穿 + 伤害衰减 + 互斥分支 ----
@@ -301,4 +303,160 @@ test('weapon stats read the same tables the guns fire from', () => {
       assert.ok(weaponStats(id, level).length > 0, `${id} Lv${level} renders stat lines`);
     }
   }
+});
+
+// ---- 阶段二武器：同品类差异验收（§13） ----
+
+test('W02 alternating barrels trigger the flank bonus on repeated same-target hits', () => {
+  const { c, p, w } = rig(slot('W02'), null);
+  const target = dummy(c, 0, 260);
+  settle(20, c, w, p); // 首发落地：无加成
+  const first = 500 - target.hp;
+  assert.ok(first > 0, 'first volley lands plain');
+  settle(95, c, w, p); // 1.58s 内恰好再一发 → 夹击 ×1.6
+  const second = 500 - target.hp - first;
+  assert.ok(Math.abs(second - 34 * 1.6) < 1.2, `flank hit ×1.6 (got ${second.toFixed(1)})`);
+  const other = rig(slot('W02'), null);
+  const a = dummy(other.c, -60, 260), b = dummy(other.c, 60, 260);
+  settle(3, other.c, other.w, other.p);
+  const firstA = 500 - a.hp;
+  settle(95, other.c, other.w, other.p);
+  const secondA = 500 - a.hp - firstA;
+  assert.ok(Math.abs(secondA - 34) < 1.2, `switching targets forfeits the bonus (got ${secondA.toFixed(1)})`);
+  void b;
+});
+
+test('W04 fish hops sideways to a fresh target and decays per hop', () => {
+  const { c, p, w } = rig(slot('W04'), null);
+  const main = dummy(c, 0, 260);
+  const side = dummy(c, 70, 320);
+  settle(20, c, w, p);
+  assert.ok(main.hp < 500, 'first hit lands');
+  settle(40, c, w, p);
+  assert.ok(side.hp < 500, `the fish hopped to the lateral target (hp ${side.hp})`);
+  // 孤立目标无处可跳：弹丸直接消失。
+  const lonely = rig(slot('W04'), null);
+  const boss = dummy(lonely.c, 0, 300, 9000);
+  settle(3, lonely.c, lonely.w, lonely.p);
+  settle(40, lonely.c, lonely.w, lonely.p);
+  assert.ok(boss.hp < 9000 && boss.hp > 8800, 'single hit without a hop target still lands once');
+});
+
+test('W06 rockets wait for the lock window, volley, then rebuild', () => {
+  const { c, p, w } = rig(slot('W06'), null);
+  const boss = c.spawn(3, 0, 300)!; boss.hp = 9000;
+  settle(30, c, w, p);
+  assert.ok(w.lockTime > 0 || w.lockSlot === boss.slot, 'lock builds on the boss');
+  const before = c.shots;
+  settle(160, c, w, p);
+  assert.ok(c.shots > before, 'a completed lock fires the rocket volley');
+  // 目标大幅横移会打断锁定：锁进度归零后需要重新积累。
+  boss.x = 130;
+  settle(10, c, w, p);
+  settle(20, c, w, p);
+  assert.ok(w.lockTime < 1, `big lateral drift breaks the lock (lockTime ${w.lockTime.toFixed(2)})`);
+});
+
+test('W11 fires parallel rows over a short burst', () => {
+  const { c, p, w } = rig(slot('W11'), null);
+  dummy(c, 0, 400, 9000);
+  let rows = 0;
+  for (let i = 0; i < 60; i++) {
+    const shots = c.shots;
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (c.shots > shots) rows++;
+  }
+  assert.equal(rows, 3, `Lv1 burst is three rows (got ${rows})`);
+  const bolts = c.bullets.items.filter(b => b.active && b.kind === 6);
+  assert.ok(bolts.length >= 3, 'each row carries parallel bolts');
+});
+
+test('W13 saw grinds what touches it and expires without coin drops', () => {
+  const { c, p, w } = rig(null, slot('W13'));
+  const rider = parkedRider(c, 0, -70);
+  w.configure(p);
+  settle(30, c, w, p);
+  assert.ok(rider.hp < 80, `the saw grinds the parked pursuer (hp ${rider.hp})`);
+  assert.ok(w.saws.activeCount > 0, 'saw stays on the road');
+});
+
+test('W17 mines detonate on contact and chain through neighbours on branch a', () => {
+  const plain = rig(null, slot('W17'));
+  const rider = parkedRider(plain.c, 0, -60);
+  settle(40, plain.c, plain.w, plain.p);
+  assert.ok(rider.hp < 80, `a chasing rider crosses the dropped mine (hp ${rider.hp})`);
+  const chain = rig(null, slot('W17', 3, 'a'));
+  const pack = [parkedRider(chain.c, 0, -60), parkedRider(chain.c, 20, -150), parkedRider(chain.c, -30, -260)];
+  settle(3, chain.c, chain.w, chain.p);
+  settle(200, chain.c, chain.w, chain.p);
+  assert.ok(pack.every(r => r.hp < 80), 'the chain detonation sweeps the whole pack');
+});
+
+test('W21 pressure ring shoves enemies into each other for collision damage', () => {
+  const { c, p, w } = rig(null, slot('W21'));
+  w.configure(p);
+  const centre = parkedRider(c, 0, -50);
+  const neighbour = parkedRider(c, 30, -50);
+  settle(3, c, w, p);
+  const moved = Math.abs(centre.x) > 0 || centre.z !== -50;
+  assert.ok(moved, 'the ring pushed the rider');
+  assert.ok(neighbour.hp < 80 || centre.hp < 80 - 5, `shoved enemies clip each other (n ${neighbour.hp}, c ${centre.hp})`);
+});
+
+test('W24 freezes a pursuing rider; the ram shatters it and thaw grants resistance', () => {
+  const { c, p, w } = rig(null, slot('W24'));
+  const rider = parkedRider(c, 0, -80);
+  rider.hp = 9000;
+  let everFrozen = false;
+  for (let i = 0; i < 60 * 8 && !everFrozen; i++) {
+    // 车辆正常行驶：追兵 AI 的追赶才有「最迫近的后侧威胁」语义。
+    p.previousProgress = p.progress; p.progress += 340 * FIXED_DT; p.speed = 340; p.vy = -340;
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (rider.frozen) everFrozen = true;
+  }
+  assert.ok(everFrozen, `chill bar completes into a freeze (chill ${rider.chill.toFixed(0)})`);
+  // 冻结的目标停在原地；玩家开车撞上去 → 撞碎 ×2 + 一次性冰爆。
+  rider.x = 0; rider.z = p.progress - 10; rider.contact = 0; rider.vx = 0;
+  const freezeHp = rider.hp;
+  c.step(p, FIXED_DT);
+  assert.ok(rider.hp < freezeHp - 20, `the ram shatters the frozen rider (Δ${(freezeHp - rider.hp).toFixed(0)})`);
+});
+
+test('W24 boss only suffers soft control and thaw grants chill resistance', () => {
+  const { c, p, w } = rig(null, slot('W24'));
+  const boss = c.spawn(3, 0, -80)!; boss.hp = 9000;
+  // 霸王的 AI 会自己开走；把测试钉在锁冻范围内验证软控路径。
+  let everSoft = false;
+  for (let i = 0; i < 60 * 8 && !everSoft; i++) {
+    boss.z = p.progress - 80; boss.x = 0; boss.vx = boss.vz = 0;
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (boss.slow < 1) everSoft = true;
+  }
+  assert.ok(everSoft, 'boss takes the soft slow instead of a freeze');
+  assert.ok(!boss.frozen, 'the truck is never fully frozen');
+  const thaw = rig(null, slot('W24'));
+  const victim = parkedRider(thaw.c, 0, -80);
+  victim.hp = 9000;
+  let thawResist = false;
+  for (let i = 0; i < 60 * 12 && !thawResist; i++) {
+    thaw.p.previousProgress = thaw.p.progress; thaw.p.progress += 340 * FIXED_DT; thaw.p.speed = 340; thaw.p.vy = -340;
+    // 钉在锁定范围内：冻结的目标若被车甩出回收线就直接消失，观察不到解冻窗。
+    victim.z = thaw.p.progress - 80; victim.x = 0;
+    thaw.c.step(thaw.p, FIXED_DT); thaw.w.step(thaw.p, FIXED_DT);
+    if (!victim.frozen && victim.chillResist > 0) thawResist = true;
+  }
+  assert.ok(thawResist, 'thaw grants a resistance window before the next freeze');
+});
+
+test('W31 spiral blade sweeps outward and back with per-pass hit cooldown', () => {
+  const { c, p, w } = rig(null, slot('W31'));
+  const rider = parkedRider(c, 24, -40);
+  rider.hp = 9000;
+  let radii = new Set<number>();
+  for (let i = 0; i < 240; i++) {
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    radii.add(Math.round(w.spiralR));
+  }
+  assert.ok(radii.size >= 4, `the blade radius oscillates (${radii.size} distinct values)`);
+  assert.ok(rider.hp < 9000, 'the blade grinds what it passes');
 });
