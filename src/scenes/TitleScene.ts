@@ -4,11 +4,13 @@ import { CityCombobox } from '../ui/CityCombobox';
 import { loadSnapshot } from '../data/loadSnapshot';
 import { loadRecords, loadRun } from '../systems/SaveSystem';
 import { updateSoundButton } from '../ui/UtilityControls';
+import { CodexView } from '../ui/CodexView';
 import { Player } from '../entities/Player';
 import { TrackGenerator } from '../systems/TrackGenerator';
 
 export class TitleScene extends Phaser.Scene {
   private track!: TrackGenerator;
+  private codex!: CodexView;
   private car!: Player;
   private abort?: AbortController;
   constructor() { super('Title'); }
@@ -22,6 +24,8 @@ export class TitleScene extends Phaser.Scene {
     document.getElementById('hud')!.classList.add('hidden');
     this.abort = new AbortController();
     const options = { signal: this.abort.signal };
+    this.codex = new CodexView();
+    this.codex.render();
     const start = document.getElementById('start') as HTMLButtonElement;
     const city = document.getElementById('destination-city') as HTMLInputElement;
     const dice = document.getElementById('random-city') as HTMLButtonElement;

@@ -506,3 +506,23 @@ body.low-health #vignette{opacity:1;animation:vignette-breath 1.1s ease-in-out i
 .sauce-card .sauce-bound, .sauce-card .sauce-targets { font-style:normal; font-size:9px; line-height:1.45; color:#7a6f4e; overflow-wrap:anywhere; }
 .sauce-card .sauce-targets { color:#ad4931; }
 #replacement p { font-size:10px; color:#5a5340; }
+
+/* ---- 武器图鉴（第三阶段 §13） ---- */
+.codex-open { margin-top:8px; width:100%; min-height:42px; border:1px solid #c49a3e; border-radius:10px; background:#fff9e8; font:700 12px system-ui; color:#7a4a12; cursor:pointer; }
+.codex-panel { display:flex; flex-direction:column; gap:8px; max-height:82vh; }
+.codex-intro { font-size:10.5px; line-height:1.6; color:#5a5340; }
+.codex-list { overflow-y:auto; display:flex; flex-direction:column; gap:7px; padding-right:2px; flex:1; }
+.codex-card { display:flex; gap:8px; border:1px solid #c8b890; border-radius:12px; background:#fcf3d9; padding:8px; }
+.codex-art { width:44px; flex-shrink:0; display:flex; align-items:flex-start; justify-content:center; }
+.codex-art img { width:40px; height:auto; pointer-events:none; }
+.codex-art-fallback { width:34px; height:34px; border-radius:8px; background:#ffefc2; border:1px solid #c8b890; }
+.codex-body { flex:1; min-width:0; }
+.codex-body h3 { font-size:12px; margin:0 0 3px; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+.codex-body h3 small { font-size:8.5px; color:#8a8e6b; font-weight:700; }
+.codex-branches { display:flex; gap:5px; margin:4px 0; flex-wrap:wrap; }
+.codex-branches span { font-size:9px; line-height:1.45; border:1px solid #b78b3e; border-radius:7px; background:#ffefc2; padding:3px 7px; color:#354e3c; }
+.codex-branches b { margin-right:3px; }
+.codex-stats { display:flex; flex-direction:column; gap:2px; margin:4px 0; }
+.codex-level { font-size:9px; color:#5a5340; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.codex-level i { font-style:normal; font-weight:800; color:#ad4931; width:30px; flex-shrink:0; }
+.codex-compat { font-size:9px; color:#7a6f4e; margin:3px 0 0; }

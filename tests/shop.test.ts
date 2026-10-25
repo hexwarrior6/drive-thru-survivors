@@ -120,13 +120,10 @@ test('upgrade service backs up growth when no material dish is in this store', (
   assert.equal(shop.slots[SLOT_FRONT]!.branch, 'b');
 });
 
-test('featured cards prioritise implemented exclusive weapons over generic fallbacks', () => {
+test('featured cards are all implemented exclusive weapons; generics only cover unknowns', () => {
   const shop = setup();
-  const ready = new Set(['W01', 'W02', 'W04', 'W06', 'W07', 'W11', 'W12', 'W13', 'W17', 'W21', 'W24', 'W31']);
   const kinds = shop.offers.slice(0, 3).map(p => shop.weaponFor(p));
-  assert.ok(kinds.every(k => ready.has(k) || k === 'generic-front' || k === 'generic-rear'));
-  const hasExclusive = shop.offers.slice(0, 3).some(p => ready.has(shop.weaponFor(p)));
-  assert.equal(hasExclusive, true, 'demo menu always surfaces an implemented weapon up front');
+  assert.ok(kinds.every(k => /^W\d+$/.test(k)), `featured cards must be catalog weapons (got ${kinds.join(',')})`);
 });
 
 test('repair pricing is unchanged and refuses full health or broke wallets', () => {

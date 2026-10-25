@@ -67,8 +67,14 @@
 <div class="city-row"><div id="city-picker" class="city-picker"><div class="city-input-wrap"><input id="destination-city" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="city-suggestions" value="上海" maxlength="20" autocomplete="off" placeholder="输入或选择城市"/><button id="toggle-cities" class="city-toggle" aria-label="展开常用城市" aria-expanded="false" aria-controls="city-options-panel" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button></div>
 <div id="city-options-panel" class="city-options-panel" hidden><div class="city-options-heading">常用城市 <span>也可直接输入</span></div><div id="city-suggestions" class="city-options" role="listbox" aria-label="常用城市"></div><p id="city-empty" hidden>没有匹配候选，可直接使用输入的城市。</p></div></div><button id="random-city" class="dice-button" aria-label="随机选择起始城市" title="随机选择城市"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="8" cy="8" r="1.4"/><circle cx="16" cy="8" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="8" cy="16" r="1.4"/><circle cx="16" cy="16" r="1.4"/></svg></button></div>
 <button id="start" class="primary">发动引擎 ↗</button>
+<button id="codex-open" class="codex-open hidden">武器图鉴 · 32 件 ↗</button>
 <button id="resume-run" class="resume-button hidden">继续游戏 ↗</button>
-<p id="title-records" class="title-records" hidden></p><p id="destination-status" role="status">选个城市，沿途随机停靠真实得来速。</p></div>
+<div id="codex-panel" class="pause-panel codex-panel hidden" role="dialog" aria-modal="true" aria-label="武器图鉴">
+<span class="title-tag">WEAPON CODEX · 武器图鉴</span><h2>32 件餐品专属武器</h2>
+<p class="codex-intro">具体餐品决定独立武器，食品品类决定家族；每件都有招牌机制、弱点与互斥分支。商店卡片、这里与实际开火读取同一份定义。</p>
+<div id="codex-list" class="codex-list"></div>
+<button id="codex-close" class="reset-button">收起图鉴</button>
+</div><p id="destination-status" role="status">选个城市，沿途随机停靠真实得来速。</p></div>
 <div id="pause-panel" class="pause-panel hidden"><span class="title-tag">TAKE A PIT STOP</span><h2>歇一脚，再出发。</h2>
 <div class="pause-stats"><span>行驶里程 <b id="distance">0.00 km</b></span><span>击退追兵 <b id="kills">0</b></span><span>成功漂移 <b id="drift-count">00</b></span><span>紫焰释放 <b id="purple-count">00</b></span></div>
 <div class="cruise"><label class="cruise-toggle"><span class="cruise-copy"><span class="cruise-name">自动油门</span><span class="cruise-hint">关闭后使用 W / ↑ 加速</span></span><input id="cruise" type="checkbox" role="switch" aria-label="自动油门" checked/><span class="cruise-switch" aria-hidden="true"></span></label></div>

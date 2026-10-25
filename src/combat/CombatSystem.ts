@@ -36,6 +36,8 @@ export interface Enemy {
   chill: number; chillResist: number; frozen: boolean;
   /** 圆锯/螺旋刃等近身磨切的每目标命中冷却。 */
   grindCd: number;
+  /** 熔酪黏弹的黏附层数与窗口；菠萝熔心的酸浆沾染时长。 */
+  stickyStacks: number; stickyTime: number; acidTime: number;
   /** Boss state machine: 0 cruise, 1 telegraph, 2 slam dash, 3 recover. Riders reuse it: 0 hover, 1 lunge, 2 recover. */
   phase: number; timer: number; tx: number; throwCd: number;
 }
@@ -48,7 +50,8 @@ export interface Bullet {
   traits: number;
   /** 发射时打包的武器元数据：bit0 分支a · bit1 分支b · bit2 Lv5 · bit3 甜酸弹墙兼容。 */
   meta: number;
-  /** 回旋刃行程：0 去程 / 1 回程；回程清空 hitMask 重新记账（同敌每程各一次）。 */
+  /** 回旋刃行程：0 去程 / 1 回程；回程清空 hitMask 重新记账（同敌每程各一次）。
+   * 爆泡复用为引信：0 漂浮 / ≥1 已点燃（剩余引信秒数）。 */
   leg: number;
   /** 贯穿炮已穿透数（伤害衰减按 hits 递增）。 */
   hits: number;
@@ -65,7 +68,7 @@ export interface Damage {
 export interface CombatEffects { explode(x: number, z: number, kind: number): void }
 /** Simulation owns no Phaser objects. Every slot, free list and grid cell is allocated at startup. */
 export class CombatSystem {
-  readonly enemies = new ObjectPool<Enemy>(128, slot => ({ active: false, slot, kind: 0, x: 0, z: 0, px: 0, pz: 0, hp: 0, flash: 0, contact: 0, vx: 0, vz: 0, slow: 1, slowTime: 0, burn: 0, burnDamage: 0, armorBreak: 0, armorHits: 0, flankTime: 0, flankStreak: 0, chill: 0, chillResist: 0, frozen: false, grindCd: 0, phase: 0, timer: 0, tx: 0, throwCd: 0 }));
+  readonly enemies = new ObjectPool<Enemy>(128, slot => ({ active: false, slot, kind: 0, x: 0, z: 0, px: 0, pz: 0, hp: 0, flash: 0, contact: 0, vx: 0, vz: 0, slow: 1, slowTime: 0, burn: 0, burnDamage: 0, armorBreak: 0, armorHits: 0, flankTime: 0, flankStreak: 0, chill: 0, chillResist: 0, frozen: false, grindCd: 0, stickyStacks: 0, stickyTime: 0, acidTime: 0, phase: 0, timer: 0, tx: 0, throwCd: 0 }));
   readonly bullets = new ObjectPool<Bullet>(256, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, damage: PELLET_DAMAGE, kind: 0, level: 1, pierce: 1, targetSlot: -1, hitMask: new Uint8Array(128), tex: '', traits: 0, meta: 0, leg: 0, hits: 0, age: 0 }));
   readonly coins = new ObjectPool<Coin>(128, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, value: 0, magnet: false }));
   readonly damage = new ObjectPool<Damage>(64, slot => ({ active: false, slot, x: 0, z: 0, life: 0, value: 0 }));
@@ -128,6 +131,7 @@ export class CombatSystem {
     e.armorBreak = 0; e.armorHits = 0;
     e.flankTime = 0; e.flankStreak = 0;
     e.chill = 0; e.chillResist = 0; e.frozen = false; e.grindCd = 0;
+    e.stickyStacks = 0; e.stickyTime = 0; e.acidTime = 0;
     e.hp = kind === 3 ? Math.round(BOSS_HP * bossHpScale(this.bossTier)) : Math.round(ENEMY_HP[kind] * this.hpScale);
     e.flash = e.contact = 0; e.phase = 0; e.timer = 0; e.tx = 0; e.throwCd = 2.4;
     // Riders line up behind the car briefly before their first lunge; a lone rider
@@ -278,6 +282,9 @@ export class CombatSystem {
       }
       e.flankTime = Math.max(0, e.flankTime - dt);
       if (e.flankTime === 0) e.flankStreak = 0;
+      e.stickyTime = Math.max(0, e.stickyTime - dt);
+      if (e.stickyTime === 0) e.stickyStacks = 0;
+      e.acidTime = Math.max(0, e.acidTime - dt);
       e.chillResist = Math.max(0, e.chillResist - dt);
       e.grindCd = Math.max(0, e.grindCd - dt);
       e.chill = Math.max(0, e.chill - 8 * dt);
@@ -405,6 +412,69 @@ export class CombatSystem {
           b.vx = Math.sin(current + turn) * speed; b.vz = Math.cos(current + turn) * speed;
         }
       }
+      if (b.kind === 7 && b.life <= 0) {
+        // 迫击母弹落地：范围爆炸；集束分支向两侧散出子炸弹。
+        this.blast(b.x, b.z);
+        const radius = (62 + b.level * 8) * ((b.meta & 1) !== 0 ? 1.3 : 1);
+        if ((b.meta & 32) !== 0) {
+          const subCount = Math.max(2, b.level + 1);
+          for (let side = -1; side <= 1; side += 2) {
+            for (let n = 0; n < subCount; n++) {
+              const sub = this.bullets.acquire(); if (!sub) break;
+              const a = (side > 0 ? 0.9 : -0.9) + n * 0.18 * side;
+              sub.x = sub.px = b.x; sub.z = sub.pz = b.z;
+              sub.vx = Math.sin(a) * 520; sub.vz = Math.cos(a) * 520 * 0.4;
+              sub.damage = b.damage * 0.45; sub.life = 0.55; sub.kind = 6; sub.level = 1;
+              sub.pierce = 1; sub.targetSlot = -1; sub.hitMask.set(b.hitMask);
+              sub.tex = b.tex; sub.traits = b.traits; sub.meta = 0; sub.leg = 0; sub.hits = 0; sub.age = 0;
+            }
+          }
+        } else {
+          for (let k = 0; k < this.enemies.capacity; k++) {
+            const victim = this.enemies.items[k];
+            if (victim.active && Math.hypot(victim.x - b.x, victim.z - b.z) <= radius) {
+              this.hit(victim, b.damage);
+              // 重装药 Lv5：落点留下短暂余燃（低频火带复用）。
+              if ((b.meta & 4) !== 0 && (b.meta & 1) !== 0) { victim.slow = Math.min(victim.slow, 0.7); victim.slowTime = 0.8; }
+            }
+          }
+        }
+        this.bullets.release(b); continue;
+      }
+      if (b.kind === 8) {
+        // 芬达爆泡：被触碰后点燃引信，倒计时结束原地爆裂。
+        if (b.leg > 0) {
+          b.leg -= dt;
+          b.vx *= Math.pow(0.02, dt); b.vz *= Math.pow(0.02, dt);
+          if (b.leg <= 0) {
+            this.blast(b.x, b.z);
+            for (let k = 0; k < this.enemies.capacity; k++) {
+              const victim = this.enemies.items[k];
+              const br = (b.level * 30 + 40) * ((b.meta & 1) !== 0 ? 1.4 : 1);
+            if (victim.active && Math.hypot(victim.x - b.x, victim.z - b.z) <= br) this.hit(victim, b.damage);
+            }
+            this.bullets.release(b); continue;
+          }
+        }
+      }
+      if (b.kind === 9) {
+        // 松饼弹跳：按 meta 存的弹跳间隔周期落地震荡，跳尽消失。
+        b.age += dt;
+        if (b.age >= 0.55) {
+          b.age -= 0.55;
+          this.blast(b.x, b.z);
+          const radius = 52 + b.level * 6;
+          for (let k = 0; k < this.enemies.capacity; k++) {
+            const victim = this.enemies.items[k];
+            if (victim.active && Math.hypot(victim.x - b.x, victim.z - b.z) <= radius) {
+              this.hit(victim, b.damage);
+              if (victim.active && (b.meta & 2) !== 0) { victim.slow = Math.min(victim.slow, 0.6); victim.slowTime = 1; }
+            }
+          }
+          b.pierce--;
+          if (b.pierce <= 0) { this.bullets.release(b); continue; }
+        }
+      }
       if (b.kind === 2) {
         // 扭扭薯回旋刃：去程飞满后折返车身，回程清空命中账本重新记账。
         b.age += dt;
@@ -453,6 +523,44 @@ export class CombatSystem {
           target.flankTime = (b.meta & 1) !== 0 ? 2 : 1.2;
         }
         this.seasonedHit(target, amount, b.traits);
+        if (b.kind === 10 && target.active) {
+          // 薯角钻头：钻进同一目标撕开护甲并持续钻伤（复用灼烧管线，不触发命中酱料）。
+          target.armorBreak = Math.max(target.armorBreak, 3);
+          this.applyBurn(target, 3, b.damage * 0.35 * ((b.meta & 1) !== 0 ? 1.5 : 1));
+          if ((b.meta & 2) !== 0) this.sauceSplash(target, b.damage * 0.4, 50);
+          this.bullets.release(b);
+          continue;
+        }
+        if (b.kind === 11 && target.active) {
+          // 熔酪黏弹：黏附层数积累到阈值剥落爆片；未达标只掉低伤黏渣。
+          target.stickyStacks++;
+          target.stickyTime = 3;
+          const need = 2 + ((b.meta & 4) !== 0 ? 1 : 0) - ((b.meta & 1) !== 0 ? 1 : 0);
+          if (target.stickyStacks >= need) {
+            target.stickyStacks = 0;
+            this.blast(target.x, target.z);
+            const shards = Math.round(b.damage * ((b.meta & 1) !== 0 ? 1.3 : 1) * 0.8);
+            const base = Math.atan2(b.vx, b.vz) + Math.PI;
+            for (let n = -1; n <= 1; n++) {
+              const shard = this.bullets.acquire(); if (!shard) break;
+              const a = base + n * 0.5;
+              shard.x = shard.px = target.x; shard.z = shard.pz = target.z;
+              shard.vx = Math.sin(a) * 620; shard.vz = Math.cos(a) * 620;
+              shard.damage = shards * 0.6; shard.life = 0.5; shard.kind = 6; shard.level = 1;
+              shard.pierce = 1; shard.targetSlot = -1; shard.hitMask.set(b.hitMask);
+              shard.tex = b.tex; shard.traits = b.traits; shard.meta = 0; shard.leg = 0; shard.hits = 0; shard.age = 0;
+            }
+            if ((b.meta & 2) !== 0) this.sauceSplash(target, shards * 0.4, 60);
+          } else {
+            this.hit(target, b.damage * 0.4);
+          }
+          this.bullets.release(b);
+          continue;
+        }
+        if ((b.meta & 64) !== 0 && target.active) {
+          // 菠萝熔心：目标被酸浆糊上，逃窜时拖出伤害带（WeaponSystem 逐帧铺设）。
+          target.acidTime = 3;
+        }
         if (b.kind === 5) {
           // 鱼跃跳弹：侧跳向邻近新目标，逐跳衰减；跳尽或无目标即落地。
           if (b.pierce > 1 && this.hopBullet(b, target)) {

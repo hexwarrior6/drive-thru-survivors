@@ -47,7 +47,8 @@ test('catalog keeps 32 promised slots plus service entries; prototypes are ready
   const catalog = WEAPONS.filter(w => /^W\d+$/.test(w.id));
   assert.equal(catalog.length, 32);
   const ready = catalog.filter(w => w.ready);
-  assert.deepEqual(ready.map(w => w.id).sort(), ['W01', 'W02', 'W04', 'W06', 'W07', 'W11', 'W12', 'W13', 'W17', 'W21', 'W24', 'W31']);
+  assert.equal(ready.length, 32, 'phase three: the whole catalog is playable');
+  assert.deepEqual(ready.map(w => w.id).sort(), catalog.map(w => w.id).sort());
   for (const w of ready) {
     assert.ok(w.blurb.includes('；'), `${w.id} needs a behaviour+weakness blurb`);
     assert.ok(w.branches && w.branches.length === 2, `${w.id} needs two Lv.3 branches`);
@@ -61,14 +62,16 @@ test('food identity keeps recipe words and demotes unimplemented weapons explici
   assert.equal(identityFor('板烧鸡腿堡', 'main').weaponId, 'W07');
   // 大小份/别名归入同一身份：中薯与大薯不制造两件武器。
   assert.equal(identityFor('中薯条', 'side').id, identityFor('大薯条', 'side').id);
-  // 已实装的身份返回真实武器；未实装的（双层吉士 W02 已实装，改用吉士汉堡 W03 等）
+  // 目录全实装后：所有已收录身份都返回真实武器（跨门店映射稳定性）。
   assert.equal(identityFor('麦香鱼', 'main').weaponId, 'W04');
   assert.equal(identityFor('麦乐鸡', 'side').weaponId, 'W17');
+  assert.equal(identityFor('鸡米花', 'side').weaponId, 'W19');
+  assert.equal(identityFor('浓缩咖啡', 'drink').weaponId, 'W27');
   const shop = new ShopSystem(demoSnapshot(), () => .5);
-  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '麦香鱼' }), 'W04');
-  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '吉士汉堡' }), 'generic-front');
-  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '鸡米花' }), 'generic-rear');
-  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '浓缩咖啡' }), 'W27'.replace('W27', 'generic-front'));
+  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '吉士汉堡' }), 'W03');
+  // 未收录商品名走通用改装兜底，绝不冒领独立身份（§4.3）。
+  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, name: '店长神秘单人餐' }), 'generic-front');
+  assert.equal(shop.weaponFor({ ...demoSnapshot().stores[0].products[0]!, category: 'drink', name: '店长神秘特饮' }), 'generic-rear');
 });
 
 // ---- W01 巨堡贯穿炮：直线贯穿 + 伤害衰减 + 互斥分支 ----
@@ -459,4 +462,241 @@ test('W31 spiral blade sweeps outward and back with per-pass hit cooldown', () =
   }
   assert.ok(radii.size >= 4, `the blade radius oscillates (${radii.size} distinct values)`);
   assert.ok(rider.hp < 9000, 'the blade grinds what it passes');
+});
+
+// ---- 第三阶段：目录补齐到 32 件，同家族差异验收（§5） ----
+
+test('same-family weapons differ mechanically: every behavior in a family is unique', () => {
+  const catalog = WEAPONS.filter(w => /^W\d+$/.test(w.id));
+  const byFamily = new Map<string, string[]>();
+  for (const w of catalog) {
+    const list = byFamily.get(w.family) ?? [];
+    list.push(w.behavior);
+    byFamily.set(w.family, list);
+  }
+  for (const [family, behaviors] of byFamily) {
+    assert.equal(new Set(behaviors).size, behaviors.length, `${family} family reuses a behavior: ${behaviors.join(',')}`);
+  }
+  for (const w of catalog) {
+    assert.ok(w.branches && w.branches.length === 2, `${w.id} needs two Lv.3 branches`);
+  }
+});
+
+test('W03 sticky shells burst after the threshold and drop weak residue before that', () => {
+  const { c, p, w } = rig(slot('W03'), null);
+  const target = dummy(c, 0, 260, 9000);
+  settle(20, c, w, p); // 第一发：黏附 +1，只掉 40% 黏渣
+  assert.ok(target.stickyStacks >= 1, `shell sticks (stacks ${target.stickyStacks})`);
+  const beforeShards = c.bullets.activeCount;
+  settle(95, c, w, p); // 第二发达阈值 → 剥落爆片
+  assert.ok(target.stickyStacks === 0, 'threshold burst resets stacks');
+  assert.ok(c.bullets.activeCount > beforeShards, 'shards spawned');
+});
+
+test('W05 closeburst fans wide but dies before reaching far targets', () => {
+  const { c, p, w } = rig(slot('W05'), null);
+  const near = dummy(c, 0, 200);
+  settle(25, c, w, p);
+  assert.ok(near.hp < 500, 'close target takes the burst');
+  const farRig = rig(slot('W05'), null);
+  const far = dummy(farRig.c, 0, 700, 9000);
+  settle(60, farRig.c, farRig.w, farRig.p);
+  assert.ok(far.hp > 8800, `pellets dissolve before far range (hp ${far.hp})`);
+});
+
+test('W08 rail gun charges a full line shot and resets', () => {
+  const { c, p, w } = rig(slot('W08'), null);
+  const a = dummy(c, 0, 260), b = dummy(c, 0, 420);
+  settle(150, c, w, p); // 蓄能 2.4s → 线击贯穿
+  assert.ok(a.hp < 500 && b.hp < 500, `line hits both (a ${a.hp}, b ${b.hp})`);
+  assert.ok(w.railCharge < 0.3, `charge consumed by the shot (${w.railCharge.toFixed(2)})`);
+});
+
+test('W09 mortar lobs to a predicted point and damages the landing zone', () => {
+  const { c, p, w } = rig(slot('W09'), null);
+  const spot = dummy(c, 0, 560);
+  settle(90, c, w, p);
+  assert.ok(spot.hp < 500, `the shell lands on the predicted zone (hp ${spot.hp})`);
+});
+
+test('W10 bounce disc shocks at each landing and hops multiple times', () => {
+  const { c, p, w } = rig(slot('W10'), null);
+  const a = dummy(c, 0, 240), b = dummy(c, 0, 480);
+  settle(80, c, w, p);
+  assert.ok(a.hp < 500, 'first landing shock');
+  assert.ok(b.hp < 500, `a later landing reaches deeper (hp ${b.hp})`);
+});
+
+test('W14 fence blocks a crossing rider, damages it and loses a charge', () => {
+  const { c, p, w } = rig(null, slot('W14'));
+  w.configure(p);
+  settle(5, c, w, p);
+  assert.ok(w.blockers.activeCount > 0, 'fence deployed');
+  const wall = w.blockers.items.find(x => x.active)!;
+  const rider = parkedRider(c, 0, -60);
+  const hpBefore = rider.hp;
+  let crossed = false;
+  for (let i = 0; i < 80; i++) {
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (rider.z >= wall.z - 30 && rider.z <= wall.z + 6) crossed = true;
+  }
+  assert.ok(rider.hp < hpBefore, 'crossing the fence hurts');
+  assert.ok(crossed, 'the rider reached the fence line');
+  assert.ok(wall.hp < 4 || !wall.active, 'fence spent a charge');
+});
+
+test('W15 drill strips armor and grinds with a DoT', () => {
+  const { c, p, w } = rig(slot('W15'), null);
+  const target = dummy(c, 0, 260, 9000);
+  settle(30, c, w, p);
+  assert.ok(target.armorBreak > 0, 'armor stripped');
+  assert.ok(target.burnDamage > 0, `drill DoT running (${target.burnDamage.toFixed(2)}/s)`);
+});
+
+test('W16 sidesweep alternates rear sides and ignores the front', () => {
+  const { c, p, w } = rig(null, slot('W16'));
+  const left = parkedRider(c, -80, -80), right = parkedRider(c, 80, -80), front = dummy(c, 0, 200);
+  settle(3, c, w, p);
+  const leftHit = left.hp < 80, rightHit = right.hp < 80;
+  assert.ok(leftHit !== rightHit, 'one side per sweep');
+  settle(70, c, w, p);
+  assert.ok(left.hp < 80 && right.hp < 80, 'both sides covered on alternating sweeps');
+  assert.equal(front.hp, 500, 'the front is a blind spot');
+});
+
+test('W18 cluster mother bomb splits into flanking sub-bombs', () => {
+  const { c, p, w } = rig(slot('W18'), null);
+  const centre = dummy(c, 0, 620);
+  const flank = dummy(c, 120, 660);
+  settle(110, c, w, p);
+  assert.ok(centre.hp < 500, 'mother impact');
+  assert.ok(flank.hp < 500, `sub-bombs flank the target (hp ${flank.hp})`);
+});
+
+test('W19 cloud pellets hover behind and catch chasing riders', () => {
+  const { c, p, w } = rig(null, slot('W19'));
+  const rider = parkedRider(c, 0, -140);
+  settle(60, c, w, p);
+  assert.ok(rider.hp < 80, `the cloud catches the chaser (hp ${rider.hp})`);
+});
+
+test('W20 wires grind enemies that cross the cutting line', () => {
+  const { c, p, w } = rig(null, slot('W20'));
+  const rider = parkedRider(c, 0, -150);
+  settle(30, c, w, p);
+  assert.ok(rider.hp < 80, `the wire grinds the chaser (hp ${rider.hp})`);
+});
+
+test('W22 stream pushes its target down the road', () => {
+  const { c, p, w } = rig(slot('W22'), null);
+  const target = parkedRider(c, 0, 240);
+  settle(40, c, w, p);
+  assert.ok(target.z > 240, `the stream shoves the target forward (+${(target.z - 240).toFixed(0)}px)`);
+});
+
+test('W23 bubbles burst after a short fuse when touched', () => {
+  const { c, p, w } = rig(slot('W23'), null);
+  const target = parkedRider(c, 0, 300);
+  let exploded = false;
+  for (let i = 0; i < 60 * 5 && !exploded; i++) {
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (target.hp < 80) exploded = true;
+  }
+  assert.ok(exploded, `the delayed burst lands (hp ${target.hp})`);
+});
+
+test('W25 expanding wave damages and slows; the crest hits hardest', () => {
+  const { c, p, w } = rig(null, slot('W25'));
+  const rider = parkedRider(c, 0, -70);
+  let slowed = false;
+  for (let i = 0; i < 90; i++) {
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (rider.slow < 1) slowed = true;
+  }
+  assert.ok(rider.hp < 80, `the wave washed over the chaser (hp ${rider.hp})`);
+  assert.ok(slowed, 'the wave slows what it touches');
+});
+
+test('W26 frostwall blocks, deep-slows and shatters into ice', () => {
+  const { c, p, w } = rig(null, slot('W26'));
+  w.configure(p);
+  settle(5, c, w, p);
+  const wall = w.blockers.items.find(x => x.active)!;
+  const rider = parkedRider(c, 0, -60);
+  let chilled = false, bitten = false;
+  for (let i = 0; i < 90; i++) {
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (rider.slow <= 0.75) chilled = true;
+    if (rider.hp < 80) bitten = true;
+  }
+  assert.ok(chilled, 'frost contact chills the rider');
+  assert.ok(bitten, 'the wall bites');
+  void wall;
+});
+
+test('W27 laser builds heat, then overheats and stops', () => {
+  const { c, p, w } = rig(slot('W27'), null);
+  const target = parkedRider(c, 0, 300);
+  target.hp = 900000;
+  let sawBeam = false;
+  for (let i = 0; i < 60 * 8; i++) {
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (w.laserOn) sawBeam = true;
+    if (w.laserOverheat > 0) break;
+  }
+  assert.ok(sawBeam, 'the beam fires continuously');
+  assert.ok(w.laserOverheat > 0, 'continuous fire trips the forced cooldown');
+  assert.ok(target.hp < 900000, 'the beam deals its ticks');
+});
+
+test('W28 vortex pulls the pack together then bursts outward', () => {
+  const { c, p, w } = rig(null, slot('W28'));
+  const a = parkedRider(c, -120, -80), b = parkedRider(c, 120, -120);
+  settle(60 * 3, c, w, p);
+  assert.ok(a.hp < 80 && b.hp < 80, 'pull ticks and the pulse both bite');
+  assert.ok(Math.abs(a.x - b.x) < 220, `the pull gathered the pack (Δx ${Math.abs(a.x - b.x).toFixed(0)})`);
+});
+
+test('W29 piebox unfolds on its fuse and fires side fans', () => {
+  const { c, p, w } = rig(null, slot('W29'));
+  settle(5, c, w, p);
+  assert.ok(w.pieboxes.activeCount > 0, 'box dropped');
+  let fired = false, shotsBefore = c.shots;
+  for (let i = 0; i < 60 * 3; i++) {
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+    if (c.shots > shotsBefore) { fired = true; break; }
+  }
+  assert.ok(fired, 'the box unfolded into side fans');
+});
+
+test('W30 acid coat drags a damage trail behind fleeing targets', () => {
+  const { c, p, w } = rig(slot('W30'), null);
+  const target = parkedRider(c, 0, 300);
+  target.hp = 9000;
+  settle(30, c, w, p);
+  assert.ok(target.acidTime > 0, 'the coat sticks');
+  const bystander = parkedRider(c, 20, 240);
+  for (let i = 0; i < 60 * 2; i++) {
+    target.z -= 60 * FIXED_DT; // 目标逃窜拖带
+    c.step(p, FIXED_DT); w.step(p, FIXED_DT);
+  }
+  assert.ok(w.trails.items.some(s => s.active && s.kind === 1), 'acid segments dropped along the path');
+  assert.ok(bystander.hp < 80, `the trail grinds whoever follows (hp ${bystander.hp})`);
+});
+
+test('W32 pillar stacks on the same target and resets when it switches', () => {
+  const { c, p, w } = rig(slot('W32'), null);
+  const target = parkedRider(c, 0, 300);
+  target.hp = 900000;
+  for (let i = 0; i < 90; i++) { c.step(p, FIXED_DT); w.step(p, FIXED_DT); }
+  const stacksAfter = w.pillarStacks;
+  assert.ok(stacksAfter >= 2, `consecutive hits stack (${stacksAfter})`);
+  const other = rig(slot('W32'), null);
+  const a = parkedRider(other.c, 0, 300); a.hp = 900000;
+  const b = parkedRider(other.c, 60, 340); b.hp = 900000;
+  for (let i = 0; i < 20; i++) { other.c.step(other.p, FIXED_DT); other.w.step(other.p, FIXED_DT); }
+  a.hp = 1; // 换目标：a 倒下后光柱转 b，层数应清零
+  other.c.step(other.p, FIXED_DT);
+  for (let i = 0; i < 40; i++) { other.c.step(other.p, FIXED_DT); other.w.step(other.p, FIXED_DT); }
+  assert.ok(other.w.pillarStacks <= 2, `stacks reset on target switch (got ${other.w.pillarStacks})`);
 });

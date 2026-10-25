@@ -3,9 +3,8 @@
  *
  * 结构（对应 docs/WEAPON_SYSTEM_REDESIGN.md §4.3/§12.1）：
  * - 稳定战斗 ID（W01…W32）：升级、存档、酱料兼容都不依赖贴图 key 或商品名哈希。
- * - 目录先落全 32 件的「身份承诺」（家族/挂载/一句话机制），`ready: false` 的条目
- *   是显式待映射名单：任何商品都不允许假装它们已经实现，未就绪者一律走
- *   「通用改装」占位（generic-front / generic-rear），不计入独立武器数量。
+ * - 目录 32 件战斗武器全部实装（第三阶段完成）；「通用改装」占位仅用于
+ *   未收录商品名兜底，不计入独立武器数量。
  * - 首阶段（文档 §13 第一阶段）ready 的战斗武器为三件技术原型：
  *   W01 巨堡贯穿炮 / W12 扭扭薯回旋刃 / W07 板烧炙烤尾焰，
  *   另有可替换初始后槽散弹（scatter）、免费基础前炮（service-front）与通用改装。
@@ -17,7 +16,10 @@ import type { StatIcon } from '../ui/icons';
 export type Mount = 'front' | 'rear' | 'module';
 export type WeaponFamily = '炮械' | '薯类' | '鸡肉' | '饮品' | '甜品' | '通用' | '服务';
 export type Behavior = 'scatter' | 'pierce' | 'boomerang' | 'exhaust' | 'straight' | 'spray'
-  | 'alternating' | 'jumper' | 'rocket' | 'volley' | 'saw' | 'mine' | 'pulse' | 'freeze' | 'spiral';
+  | 'alternating' | 'jumper' | 'rocket' | 'volley' | 'saw' | 'mine' | 'pulse' | 'freeze' | 'spiral'
+  | 'sticky' | 'closeburst' | 'rail' | 'mortar' | 'bounce' | 'fence' | 'drill' | 'sidesweep'
+  | 'cluster' | 'cloud' | 'wires' | 'stream' | 'bubble' | 'wave' | 'frostwall' | 'laser'
+  | 'vortex' | 'piebox' | 'acid' | 'pillar';
 export type BranchId = 'a' | 'b';
 
 export interface BranchDef {
@@ -75,7 +77,16 @@ export const WEAPONS: readonly WeaponDef[] = [
       { id: 'b', name: '双线快射', note: '放弃夹击 · 射速明显提升' },
     ],
   },
-  { id: 'W03', name: '熔酪黏弹炮', family: '炮械', mount: 'front', ready: false, behavior: 'straight', blurb: '炮弹黏附目标，持续集火达标后剥落爆片。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W03', name: '熔酪黏弹炮', family: '炮械', mount: 'front', ready: true, behavior: 'sticky', artKey: 'food-burger-spicy',
+    blurb: '黏弹糊在目标身上，持续集火攒到阈值剥落爆片；散打小怪只掉低伤黏渣。',
+    damage: [30, 40, 53, 69, 89], interval: [1.2, 1.15, 1.1, 1.05, 1.0],
+    range: [1000, 1000, 1000, 1000, 1000], count: [1, 1, 1, 1, 1], speed: 940, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '浓酪配比', note: '黏附阈值更低 · 爆片伤害更高' },
+      { id: 'b', name: '拉丝溅射', note: '爆裂时向邻近目标拉丝溅射' },
+    ],
+  },
   {
     id: 'W04', name: '鱼跃跳弹炮', family: '炮械', mount: 'front', ready: true, behavior: 'jumper', artKey: 'food-burger-fish',
     blurb: '命中的鱼弹侧跳向邻近新目标，逐跳衰减；孤立 Boss 缺少跳跃收益。',
@@ -86,7 +97,16 @@ export const WEAPONS: readonly WeaponDef[] = [
       { id: 'b', name: '落点溅射', note: '每次落点小范围溅射 · 跳跃更短' },
     ],
   },
-  { id: 'W05', name: '鸡排霰弹炮', family: '炮械', mount: 'front', ready: false, behavior: 'straight', blurb: '近距宽扇爆发，距离增加后弹丸快速消散。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W05', name: '鸡排霰弹炮', family: '炮械', mount: 'front', ready: true, behavior: 'closeburst', artKey: 'food-burger-classic',
+    blurb: '近距宽扇一齐爆发，弹丸随距离快速消散；远距离毫无威胁。',
+    damage: [14, 19, 25, 32, 41], interval: [1.6, 1.5, 1.4, 1.35, 1.3],
+    range: [420, 450, 480, 510, 540], count: [6, 7, 8, 9, 10], speed: 860, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '顶点爆发', note: '极近距一击 ×1.5 · 贴身打点' },
+      { id: 'b', name: '宽域散布', note: '射程与散布 +40% · 单发略降' },
+    ],
+  },
   {
     id: 'W06', name: '麦辣标记火箭炮', family: '炮械', mount: 'front', ready: true, behavior: 'rocket', artKey: 'food-missile-burger',
     blurb: '稳定走线积累锁定后齐射有限转向火箭；频繁变道中断锁定，过量伤害浪费于小怪。',
@@ -106,9 +126,36 @@ export const WEAPONS: readonly WeaponDef[] = [
       { id: 'b', name: '过热喷口', note: '短时贴近爆发 · 随后强制冷却' },
     ],
   },
-  { id: 'W08', name: '培根蓄能轨道炮', family: '炮械', mount: 'front', ready: false, behavior: 'straight', blurb: '自动蓄能后瞬时线击，开火前显示细瞄线。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W09', name: '安格斯重迫击炮', family: '炮械', mount: 'front', ready: false, behavior: 'straight', blurb: '向前方预测点抛射，延迟落地形成范围爆炸。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W10', name: '松饼弹跳轰击炮', family: '炮械', mount: 'front', ready: false, behavior: 'straight', blurb: '厚圆弹沿地有限跳跃，每次落地形成局部震荡。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W08', name: '培根蓄能轨道炮', family: '炮械', mount: 'front', ready: true, behavior: 'rail', artKey: 'food-burger-double',
+    blurb: '自动蓄能后瞬时贯穿整条瞄线；单次落空损失整轮蓄能。',
+    damage: [58, 78, 102, 132, 170], interval: [2.4, 2.3, 2.2, 2.1, 2.0],
+    range: [1250, 1250, 1250, 1250, 1250], count: [1, 1, 1, 1, 1], speed: 0, pierce: [4, 5, 6, 7, 8],
+    branches: [
+      { id: 'a', name: '贯穿轨道', note: '全线伤害几乎不衰减' },
+      { id: 'b', name: '速充线圈', note: '蓄能更快 · 单发略降' },
+    ],
+  },
+  {
+    id: 'W09', name: '安格斯重迫击炮', family: '炮械', mount: 'front', ready: true, behavior: 'mortar', artKey: 'food-burger-fish',
+    blurb: '向预测点抛射肉饼，延迟落地砸出范围爆炸；近身与高速横移难打。',
+    damage: [62, 84, 110, 142, 180], interval: [2.2, 2.1, 2.0, 1.9, 1.8],
+    range: [620, 680, 740, 800, 860], count: [1, 1, 1, 1, 1], speed: 620, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '重装药', note: '爆炸半径与伤害更大 · 装填更慢' },
+      { id: 'b', name: '双炮齐射', note: '两发落点分散 · 单发略降' },
+    ],
+  },
+  {
+    id: 'W10', name: '松饼弹跳轰击炮', family: '炮械', mount: 'front', ready: true, behavior: 'bounce', artKey: 'food-burger-classic',
+    blurb: '厚圆松饼沿路弹跳，每次落地砸出局部震荡；伤害有间隙不是贯穿。',
+    damage: [26, 35, 46, 59, 75], interval: [1.9, 1.8, 1.7, 1.6, 1.5],
+    range: [760, 800, 840, 880, 920], count: [3, 3, 4, 4, 5], speed: 640, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '重踏松饼', note: '震荡半径更大 · 少跳一次' },
+      { id: 'b', name: '连跳薄饼', note: '多跳两次 · 单次震荡略降' },
+    ],
+  },
   // ---- B. 薯类：齐射、回旋与切割家族（6 件） ----
   {
     id: 'W11', name: '薯条排射枪', family: '薯类', mount: 'front', ready: true, behavior: 'volley', artKey: 'food-fries-box',
@@ -140,9 +187,36 @@ export const WEAPONS: readonly WeaponDef[] = [
       { id: 'b', name: '双锯', note: '左右交替放下两片小锯' },
     ],
   },
-  { id: 'W14', name: '薯格封路栅', family: '薯类', mount: 'rear', ready: false, behavior: 'spray', blurb: '在身后横铺带孔短栅栏，拦截穿越敌人后破碎。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W15', name: '薯角钻头弹', family: '薯类', mount: 'front', ready: false, behavior: 'straight', blurb: '楔形弹命中后短暂钻入同一目标，削减其护甲。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W16', name: '旋风薯侧扇', family: '薯类', mount: 'rear', ready: false, behavior: 'spray', blurb: '后侧左右交替甩出弧形扇面，漂移时允许双侧合击。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W14', name: '薯格封路栅', family: '薯类', mount: 'rear', ready: true, behavior: 'fence', artKey: 'food-fries-hash',
+    blurb: '身后横铺带孔薯格栅，拦截穿越的追兵后逐段破碎；没有触发就浪费布置。',
+    damage: [26, 36, 48, 62, 78], interval: [2.6, 2.4, 2.2, 2.1, 2.0],
+    range: [2, 3, 3, 4, 4], count: [1, 1, 1, 1, 1], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '加固栅格', note: '可拦截次数 +2' },
+      { id: 'b', name: '带刺栅格', note: '每次拦截伤害 ×1.4' },
+    ],
+  },
+  {
+    id: 'W15', name: '薯角钻头弹', family: '薯类', mount: 'front', ready: true, behavior: 'drill', artKey: 'food-fries-hash',
+    blurb: '楔形弹命中后钻进目标撕开护甲并持续钻伤；过早击杀小怪浪费钻入时间。',
+    damage: [22, 30, 40, 52, 66], interval: [1.7, 1.6, 1.5, 1.45, 1.4],
+    range: [980, 980, 980, 980, 980], count: [1, 1, 1, 1, 1], speed: 900, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '深钻头', note: '钻伤 ×1.5 · 钻入更久' },
+      { id: 'b', name: '破片钻头', note: '钻入结束时小范围爆裂' },
+    ],
+  },
+  {
+    id: 'W16', name: '旋风薯侧扇', family: '薯类', mount: 'rear', ready: true, behavior: 'sidesweep', artKey: 'food-fries-curly',
+    blurb: '后侧左右交替甩出弧形扇面，漂移释放时双侧合击；正前方是盲区。',
+    damage: [9, 13, 18, 24, 31], interval: [0.55, 0.52, 0.5, 0.48, 0.46],
+    range: [130, 150, 170, 190, 210], count: [1, 1, 1, 1, 1], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '大摆幅', note: '扇角与射程 ×1.3 · 单发略降' },
+      { id: 'b', name: '急摆连击', note: '交替更快 · 单发略降' },
+    ],
+  },
   // ---- C. 鸡肉小食：爆破与布置家族（4 件） ----
   {
     id: 'W17', name: '麦乐鸡雷阵', family: '鸡肉', mount: 'rear', ready: true, behavior: 'mine', artKey: 'food-mine-box',
@@ -154,9 +228,36 @@ export const WEAPONS: readonly WeaponDef[] = [
       { id: 'b', name: '黏附重雷', note: '重型目标进近后方时掷出最近一枚雷' },
     ],
   },
-  { id: 'W18', name: '翼形集束炸弹', family: '鸡肉', mount: 'front', ready: false, behavior: 'straight', blurb: '向前抛出母弹，落地后向两侧散出有限子炸弹。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W19', name: '爆米鸡弹幕盒', family: '鸡肉', mount: 'rear', ready: false, behavior: 'spray', blurb: '向后短时喷出弹丸云，让追兵穿过弹云。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W20', name: '鸡柳双索切割器', family: '鸡肉', mount: 'rear', ready: false, behavior: 'spray', blurb: '两个后侧锚点拉出短暂切割线，转向改变夹角。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W18', name: '翼形集束炸弹', family: '鸡肉', mount: 'front', ready: true, behavior: 'cluster', artKey: 'food-mine-wing',
+    blurb: '向前抛出鸡翅母弹，落地向两侧散出子炸弹夹击分散目标；中心单点不如重炮。',
+    damage: [40, 54, 72, 94, 120], interval: [2.3, 2.2, 2.1, 2.0, 1.9],
+    range: [680, 720, 760, 800, 840], count: [2, 2, 3, 3, 4], speed: 600, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '密集弹翼', note: '子炸弹 +2 · 单发略降' },
+      { id: 'b', name: '重翼母弹', note: '母弹直击加重 · 子弹更少' },
+    ],
+  },
+  {
+    id: 'W19', name: '爆米鸡弹幕盒', family: '鸡肉', mount: 'rear', ready: true, behavior: 'cloud', artKey: 'food-mine-box',
+    blurb: '向后喷一片悬停弹丸云，让追兵自己撞进来；持续直线冲刺会抛开弹云。',
+    damage: [10, 14, 19, 25, 32], interval: [1.8, 1.7, 1.6, 1.5, 1.4],
+    range: [170, 190, 210, 230, 250], count: [6, 7, 8, 9, 10], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '密云', note: '弹丸 +50% · 单发略降' },
+      { id: 'b', name: '麻云', note: '命中的追兵短暂减速' },
+    ],
+  },
+  {
+    id: 'W20', name: '鸡柳双索切割器', family: '鸡肉', mount: 'rear', ready: true, behavior: 'wires', artKey: 'food-mine-wing',
+    blurb: '两个后侧锚点拉出切割索，横移转向改变夹角扫过追兵；有效范围窄且锚点会到期。',
+    damage: [13, 18, 24, 31, 40], interval: [1.4, 1.3, 1.25, 1.2, 1.15],
+    range: [190, 210, 230, 250, 270], count: [2, 2, 2, 2, 2], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '长索', note: '锚点更远 · 索更久' },
+      { id: 'b', name: '收网', note: '锚点收回时夹角收紧 · 索伤 ×1.3' },
+    ],
+  },
   // ---- D. 饮品：压力、光束与控场家族（8 件） ----
   {
     id: 'W21', name: '可乐高压脉冲炮', family: '饮品', mount: 'rear', ready: true, behavior: 'pulse', artKey: 'food-cola-classic',
@@ -168,8 +269,26 @@ export const WEAPONS: readonly WeaponDef[] = [
       { id: 'b', name: '气泡爆', note: '被推目标减速并追加气泡伤害' },
     ],
   },
-  { id: 'W22', name: '雪碧贯流喷枪', family: '饮品', mount: 'front', ready: false, behavior: 'straight', blurb: '前方窄束持续水流，沿同一方向推移目标。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W23', name: '芬达爆泡发射器', family: '饮品', mount: 'front', ready: false, behavior: 'straight', blurb: '发射慢速漂浮泡，敌人进入后延迟爆裂。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W22', name: '雪碧贯流喷枪', family: '饮品', mount: 'front', ready: true, behavior: 'stream', artKey: 'food-cola-sprite',
+    blurb: '前方窄束持续水流沿同一方向推着目标走；持续对齐才有效，照顾不了两侧。',
+    damage: [4, 6, 8, 11, 14], interval: [0.22, 0.22, 0.22, 0.22, 0.22],
+    range: [300, 330, 360, 390, 420], count: [1, 1, 1, 1, 1], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '高压水刀', note: '推力 ×1.5 · 直伤略降' },
+      { id: 'b', name: '宽口喷头', note: '锥角 ×1.8 · 直伤略降' },
+    ],
+  },
+  {
+    id: 'W23', name: '芬达爆泡发射器', family: '饮品', mount: 'front', ready: true, behavior: 'bubble', artKey: 'food-cola-fanta',
+    blurb: '慢速橙泡漂向敌群，碰到目标后短引信延迟爆裂；高速目标可能穿过引信窗口。',
+    damage: [34, 46, 60, 78, 100], interval: [1.9, 1.8, 1.7, 1.6, 1.5],
+    range: [640, 680, 720, 760, 800], count: [1, 1, 2, 2, 2], speed: 260, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '巨泡', note: '爆炸半径 ×1.4 · 泡更慢' },
+      { id: 'b', name: '泡群', note: '多漂一只泡 · 单发略降' },
+    ],
+  },
   {
     id: 'W24', name: '冰茶锁冻器', family: '饮品', mount: 'rear', ready: true, behavior: 'freeze', artKey: 'food-ice-tea',
     blurb: '锁定最迫近的后侧追兵积累寒意，冻住后撞碎；直伤低，Boss 只受软控制。',
@@ -180,13 +299,67 @@ export const WEAPONS: readonly WeaponDef[] = [
       { id: 'b', name: '冰雾路障', note: '放弃冻结 · 改为后方范围持续缓速' },
     ],
   },
-  { id: 'W25', name: '果汁扩散波', family: '饮品', mount: 'rear', ready: false, behavior: 'spray', blurb: '车后逐渐扩大的低伤缓速波，波前命中收益更高。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W26', name: '牛奶凝霜墙', family: '饮品', mount: 'rear', ready: false, behavior: 'spray', blurb: '后方生成短暂霜墙，阻挡次数耗尽后碎成近距冰片。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W27', name: '浓缩过热激光', family: '饮品', mount: 'front', ready: false, behavior: 'straight', blurb: '连续照射同一目标提升热度，过热后强制冷却。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W28', name: '拿铁涡流炮', family: '饮品', mount: 'rear', ready: false, behavior: 'spray', blurb: '后方先形成短暂聚拢涡流，再向外释放脉冲。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W25', name: '果汁扩散波', family: '饮品', mount: 'rear', ready: true, behavior: 'wave', artKey: 'food-ice-juice',
+    blurb: '车后一圈圈扩散的缓速果汁波，撞上刚扩出的波前收益更高；不完整冻结。',
+    damage: [7, 10, 14, 19, 24], interval: [2.4, 2.3, 2.2, 2.1, 2.0],
+    range: [240, 260, 280, 300, 320], count: [1, 1, 1, 1, 1], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '急浪', note: '扩张更快 · 频率更高 · 波前 ×1.8' },
+      { id: 'b', name: '双涟漪', note: '同一波扩散两圈' },
+    ],
+  },
+  {
+    id: 'W26', name: '牛奶凝霜墙', family: '饮品', mount: 'rear', ready: true, behavior: 'frostwall', artKey: 'food-ice-milk',
+    blurb: '身后凝出短暂霜墙，挡下追兵并深度减速；碎裂时溅出近距冰片。',
+    damage: [16, 22, 30, 39, 50], interval: [2.8, 2.6, 2.4, 2.3, 2.2],
+    range: [3, 3, 4, 4, 5], count: [1, 1, 1, 1, 1], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '厚霜', note: '可阻挡次数 +2' },
+      { id: 'b', name: '寒幕', note: '接触的追兵深度减速 40%' },
+    ],
+  },
+  {
+    id: 'W27', name: '浓缩过热激光', family: '饮品', mount: 'front', ready: true, behavior: 'laser', artKey: 'food-coffee-hot',
+    blurb: '连续照射同一目标热度攀升伤害渐增，过热后强制冷却；频繁切目标失去热度。',
+    damage: [6, 9, 12, 16, 21], interval: [0.18, 0.18, 0.18, 0.18, 0.18],
+    range: [860, 900, 940, 980, 1020], count: [1, 1, 1, 1, 1], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '聚焦透镜', note: '单目标伤害 ×1.3 · 过热更快' },
+      { id: 'b', name: '扩束镜', note: '命中点周围 40px 溅射' },
+    ],
+  },
+  {
+    id: 'W28', name: '拿铁涡流炮', family: '饮品', mount: 'rear', ready: true, behavior: 'vortex', artKey: 'food-coffee-iced',
+    blurb: '车后先卷起聚拢涡流把追兵拉成一团，再向外释放脉冲；聚怪阶段贴身风险更高。',
+    damage: [6, 9, 12, 16, 21], interval: [4.2, 4.0, 3.8, 3.6, 3.4],
+    range: [190, 210, 230, 250, 270], count: [1, 1, 1, 1, 1], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '强聚涡核', note: '拉力 ×1.4 · 聚得更快' },
+      { id: 'b', name: '过载脉冲', note: '脉冲伤害 ×1.4 并减速' },
+    ],
+  },
   // ---- E. 甜品：展开、附着与环绕家族（4 件） ----
-  { id: 'W29', name: '苹果派折叠弹匣', family: '甜品', mount: 'rear', ready: false, behavior: 'spray', blurb: '身后投下派盒，定时展开向两侧各射一扇弹片。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
-  { id: 'W30', name: '菠萝熔心弹', family: '甜品', mount: 'front', ready: false, behavior: 'straight', blurb: '前弹击中后使目标沿自身轨迹留下酸浆伤害带。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W29', name: '苹果派折叠弹匣', family: '甜品', mount: 'rear', ready: true, behavior: 'piebox', artKey: 'food-heal-pie',
+    blurb: '身后投下派盒，定时展开向两侧各射一扇弹片；定时而非接触触发，可能打空。',
+    damage: [15, 20, 27, 35, 45], interval: [2.4, 2.3, 2.2, 2.1, 2.0],
+    range: [440, 470, 500, 530, 560], count: [3, 3, 4, 4, 5], speed: 700, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '双扇齐发', note: '每侧弹片 +1' },
+      { id: 'b', name: '快折弹匣', note: '展开计时缩短 · 单发略降' },
+    ],
+  },
+  {
+    id: 'W30', name: '菠萝熔心弹', family: '甜品', mount: 'front', ready: true, behavior: 'acid', artKey: 'food-heal-pie',
+    blurb: '命中后菠萝熔心糊在目标上，它逃窜时沿自己的轨迹拖出酸浆伤害带；静止单体收益有限。',
+    damage: [24, 33, 44, 57, 73], interval: [1.6, 1.55, 1.5, 1.45, 1.4],
+    range: [980, 980, 980, 980, 980], count: [1, 1, 1, 1, 1], speed: 920, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '浓酸配比', note: '酸浆带伤害 ×1.5' },
+      { id: 'b', name: '沾染', note: '踩到酸带的敌人也被短暂沾染' },
+    ],
+  },
   {
     id: 'W31', name: '麦旋风螺旋刃', family: '甜品', mount: 'rear', ready: true, behavior: 'spiral', artKey: 'food-heal-mcflurry',
     blurb: '车后螺旋刃逐圈外扩再回收，按扩张节奏调整交战距离；近圈之外存在空档。',
@@ -197,7 +370,16 @@ export const WEAPONS: readonly WeaponDef[] = [
       { id: 'b', name: '密旋', note: '旋转更快 · 同一目标更频繁被切' },
     ],
   },
-  { id: 'W32', name: '圣代叠层光柱', family: '甜品', mount: 'front', ready: false, behavior: 'straight', blurb: '前方自动点射光柱，连续命中同一目标逐层扩宽。', damage: [], interval: [], range: [], count: [], speed: 0, pierce: [] },
+  {
+    id: 'W32', name: '圣代叠层光柱', family: '甜品', mount: 'front', ready: true, behavior: 'pillar', artKey: 'food-heal-sundae',
+    blurb: '前方自动点射圣代光柱，连续命中同一目标逐层加粗加重；清散怪时难叠层。',
+    damage: [18, 24, 32, 41, 52], interval: [0.85, 0.8, 0.75, 0.7, 0.65],
+    range: [940, 960, 980, 1000, 1020], count: [1, 1, 1, 1, 1], speed: 0, pierce: [1, 1, 1, 1, 1],
+    branches: [
+      { id: 'a', name: '叠层加料', note: '每层伤害 +35% · 层数上限 +1' },
+      { id: 'b', name: '宽幅光柱', note: '每层加宽并溅射邻近目标' },
+    ],
+  },
 
   // ---- 非目录装备：初始散弹 / 游戏服务 / 通用改装（不计入 32 件） ----
   {
@@ -387,6 +569,124 @@ export function weaponStats(id: string, level: number, branch?: BranchId): StatL
       line('flame', `${dmg}/tick 尾喷`),
       line('fan', `后方 ${def.range[l]}px`),
       ...(level >= 3 ? [line('flame', '灼烧')] : []),
+    ];
+    case 'sticky': {
+      const need = 2 + (level >= 4 ? 1 : 0) - (branch === 'a' && level >= 3 ? 1 : 0);
+      return [
+        line('burst', `${dmg} 黏弹`),
+        line('pierce', `黏附 ×${need} 层剥落爆片`),
+        ...(branch === 'b' && level >= 3 ? [line('boom', '拉丝溅射')] : []),
+      ];
+    }
+    case 'closeburst': {
+      const pellets = def.count[l] + (branch === 'a' && level >= 5 ? 2 : 0);
+      return [
+        line('burst', `${pellets} 发 × ${dmg} 宽扇`),
+        line('fan', `近距 ${def.range[l]}px · 越远越弱`),
+        ...(branch === 'a' && level >= 3 ? [line('up', '极近距 ×1.5')] : []),
+      ];
+    }
+    case 'rail': {
+      const charge = def.interval[l] * (branch === 'b' && level >= 3 ? 0.7 : 1);
+      return [
+        line('burst', `${dmg} 蓄能线击 · 贯穿 ${def.pierce[l]} 敌`),
+        line('clock', `蓄能 ${Math.round(charge * 10) / 10}s`),
+        ...(level >= 5 ? [line('boom', branch === 'a' ? '线尾冲击' : '超载过载弹')] : []),
+      ];
+    }
+    case 'mortar': return [
+      line('boom', `${dmg} 落地爆炸 · ${def.range[l] * (branch === 'a' && level >= 3 ? 1.3 : 1)}px`),
+      line('clock', `${def.interval[l]}s 抛射`),
+      ...(branch === 'b' && level >= 3 ? [line('up', '双炮齐射')] : []),
+      ...(level >= 5 && branch === 'a' ? [line('flame', '落点余燃')] : []),
+    ];
+    case 'bounce': {
+      const hops = def.count[l] + (branch === 'b' && level >= 3 ? 2 : 0) - (branch === 'a' && level >= 3 ? 1 : 0);
+      return [
+        line('boom', `${dmg} 落地震荡 ×${hops} 跳`),
+        line('fan', `弹跳推进 ${def.range[l]}px`),
+        ...(level >= 5 ? [line('snow', branch === 'b' ? '震荡留缓速' : '终末巨震')] : []),
+      ];
+    }
+    case 'fence': return [
+      line('pierce', `封路栅 · 拦截 ${def.range[l] + (branch === 'a' && level >= 3 ? 2 : 0)} 次`),
+      line('burst', `${dmg}/次拦截`),
+      ...(level >= 5 ? [line('boom', branch === 'a' ? '碎裂爆片' : '拦截减速')] : []),
+    ];
+    case 'drill': return [
+      line('pierce', `${dmg} 命中 · 钻入撕甲 3s`),
+      line('flame', `钻伤 ${Math.round(dmg * 0.35 * (branch === 'a' && level >= 3 ? 1.5 : 1))}/s`),
+      ...(branch === 'b' && level >= 3 ? [line('boom', '钻入结束爆裂')] : []),
+    ];
+    case 'sidesweep': return [
+      line('fan', `后侧左右交替扇 ${def.range[l] * (branch === 'a' && level >= 3 ? 1.3 : 1)}px`),
+      line('burst', `${dmg}/tick`),
+      line('up', '漂移释放双侧合击'),
+    ];
+    case 'cluster': {
+      const subs = def.count[l] + (branch === 'a' && level >= 3 ? 2 : 0) - (branch === 'b' && level >= 3 ? 1 : 0);
+      return [
+        line('boom', `母弹 ${dmg} · 落地散 ${subs} 子炸弹`),
+        line('fan', '两侧夹击分散目标'),
+      ];
+    }
+    case 'cloud': {
+      const pellets = Math.round(def.count[l] * (branch === 'a' && level >= 3 ? 1.5 : 1));
+      return [
+        line('burst', `${pellets} 发悬停弹云 × ${dmg}`),
+        line('fan', `车后 ${def.range[l]}px 弹幕带`),
+        ...(branch === 'b' && level >= 3 ? [line('snow', '命中减速')] : []),
+      ];
+    }
+    case 'wires': return [
+      line('pierce', `双索切割 ${def.range[l]}px · 索伤 ${dmg}`),
+      line('clock', '锚点定时重置 · 转向改变夹角'),
+      ...(branch === 'b' && level >= 3 ? [line('up', '收网 ×1.3')] : []),
+    ];
+    case 'stream': return [
+      line('burst', `${dmg}/tick 贯流水束`),
+      line('fan', `前方窄锥 ${def.range[l]}px · 推移目标`),
+      ...(branch === 'a' && level >= 3 ? [line('gauge', '推力 ×1.5')] : []),
+      ...(branch === 'b' && level >= 3 ? [line('fan', '宽口锥角 ×1.8')] : []),
+    ];
+    case 'bubble': return [
+      line('boom', `${dmg} 泡爆 · 引信 0.6s`),
+      line('up', `漂浮泡 ×${def.count[l] + (branch === 'b' && level >= 3 ? 1 : 0)}`),
+      ...(branch === 'a' && level >= 3 ? [line('gauge', '巨泡半径 ×1.4')] : []),
+    ];
+    case 'wave': return [
+      line('snow', `扩散缓速波 ${def.range[l]}px · ${dmg}`),
+      line('up', '波前命中 ×1.6'),
+      ...(branch === 'b' && level >= 3 ? [line('fan', '双涟漪')] : []),
+    ];
+    case 'frostwall': return [
+      line('pierce', `霜墙拦截 ${def.range[l] + (branch === 'a' && level >= 3 ? 2 : 0)} 次 · ${dmg}`),
+      line('snow', '碎裂溅出近距冰片'),
+      ...(branch === 'b' && level >= 3 ? [line('snow', '接触深度减速 40%')] : []),
+    ];
+    case 'laser': return [
+      line('burst', `${dmg}/tick 热度光束 · 连续照射渐增`),
+      line('clock', '过热后强制冷却 2.5s'),
+      ...(branch === 'b' && level >= 3 ? [line('boom', '命中点溅射 40px')] : []),
+    ];
+    case 'vortex': return [
+      line('magnet', `涡流聚拢 ${def.range[l]}px → 脉冲爆发`),
+      line('burst', `${dmg}/tick 拉聚 · 脉冲 ×3`),
+      ...(branch === 'b' && level >= 3 ? [line('snow', '脉冲减速')] : []),
+    ];
+    case 'piebox': return [
+      line('boom', `派盒定时展开 · 两侧各 ${def.count[l] + (branch === 'a' && level >= 3 ? 1 : 0)} 弹片 × ${dmg}`),
+      line('clock', `${branch === 'b' && level >= 3 ? 1.6 : 2.2}s 引信`),
+    ];
+    case 'acid': return [
+      line('flame', `${dmg} 命中 · 拖出酸浆伤害带`),
+      line('flame', `带伤 ${Math.round(dmg * 0.3 * (branch === 'a' && level >= 3 ? 1.5 : 1))}/s`),
+      ...(branch === 'b' && level >= 3 ? [line('up', '沾染传播')] : []),
+    ];
+    case 'pillar': return [
+      line('burst', `${dmg} 光柱点射 · 连击叠层 +25%/层`),
+      line('up', '换目标重置层数'),
+      ...(branch === 'b' && level >= 3 ? [line('fan', '加宽溅射')] : []),
     ];
   }
 }
