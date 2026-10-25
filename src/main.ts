@@ -41,7 +41,6 @@ if (import.meta.env.DEV) Object.defineProperty(window, '__driveThru', { configur
       visibleEnemies: scene.combatView.visibleEnemies, visibleBullets: scene.combatView.visibleBullets,
       visibleParticles: scene.particles.visibleCount, damageNumbers: scene.combat.damage.activeCount, ramDamage: scene.combat.lastRamDamage,
       droppedBullets: scene.combat.bullets.dropped, droppedEnemies: scene.combat.enemies.dropped } : undefined,
-    weapons: scene?.shop?.slots.map(w => w ? { name: w.name, type: w.type, level: w.level } : null),
-    toys: scene?.weapons?.toyCount ?? 0,
+    weapons: scene?.shop?.slots.map(w => w ? { weaponId: w.weaponId, name: w.name, level: w.level } : null),
     audio: scene?.audio?.diagnostics, particles: scene?.particles?.activeCount, fps: game.loop.actualFps };
 } });

@@ -1,0 +1,148 @@
+<!doctype html>
+<!-- 临时素材总览页：真实 Phaser 烘焙管线渲染本次全部美术资产。 -->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>美术素材总览（临时）</title>
+<style>
+  body { background:#fcf3d9; margin:0; padding:18px; font-family:system-ui, -apple-system, sans-serif; color:#354e3c; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { font-size:11px; color:#8a8e6b; margin-bottom:14px; }
+  h2 { font-size:15px; margin:20px 0 4px; border-left:4px solid #e75239; padding-left:8px; }
+  .note { font-size:10px; color:#8a8e6b; margin:0 0 10px; padding-left:12px; }
+  .grid { display:flex; flex-wrap:wrap; gap:8px; }
+  .cell { background:#fff9e8; border:1px solid #c8b890; border-radius:10px; padding:6px; text-align:center; }
+  .cell b { display:block; font-size:11px; margin-top:3px; }
+  .cell small { display:block; font-size:8.5px; color:#8a8e6b; }
+  .food .box { height:56px; display:flex; align-items:center; justify-content:center; }
+  .food img { height:54px; }
+  .big .box { height:120px; display:flex; align-items:flex-end; justify-content:center; }
+  .big img { height:116px; }
+  .land .box { height:130px; display:flex; align-items:flex-end; justify-content:center; }
+  .land img { height:126px; }
+  .family { font-size:10px; color:#ad4931; font-weight:700; margin:10px 0 4px; }
+  .arch { background:#fff9e8; border:1px solid #c8b890; border-radius:10px; padding:8px; width:300px; }
+  .arch h3 { margin:0 0 2px; font-size:13px; }
+  .arch .meta { font-size:9.5px; color:#8a8e6b; margin-bottom:6px; }
+  .chips { display:flex; border-radius:6px; overflow:hidden; border:1px solid #754329; }
+  .chips i { flex:1; height:20px; }
+  .wx-row { display:flex; align-items:center; gap:8px; margin:4px 0; }
+  .wx-row b { width:110px; font-size:11px; text-align:right; }
+  .wx-row .chips { width:360px; }
+  .wx-row span { font-size:9px; color:#8a8e6b; }
+</style>
+</head>
+<body>
+<h1>🎨 本次美术资产总览</h1>
+<div class="sub">28 个餐品变体 · 6 种城市原型配色 · 4 轮天气 · 8 种路边装饰 · 12 座城市地标 —— 全部为程序化绘制，与游戏内同源</div>
+
+<h2>① 餐品变体（按武器家族，28 个）</h2>
+<p class="note">商品名关键词 + 名称哈希确定性解析；贴图 44-66px 原生分辨率，商店与弹幕同图。</p>
+<div id="food"></div>
+
+<h2>② 城市风貌原型（6 种 + 经典默认）</h2>
+<p class="note">配色 + 地平线形态 + 装饰组合的排列组合；40 城逐一指派，未知城市哈希落型。色带自左至右：草地 / 路肩 / 沥青 / 沥青副色 / 车道线 / 描边 / 路缘红 / 路缘白 / 天色 / 远景主 / 远景副。</p>
+<div id="arch" class="grid"></div>
+
+<h2>③ 四轮天气叠加（晴朗 → 多云 → 黄昏 → 雨夜）</h2>
+<p class="note">进站开新一轮时切换；雨夜压暗全局、车道线反向提亮（湿路反光）+ 雨丝层。以「经典公路」与「滨海大道」为例：</p>
+<div id="weather"></div>
+
+<h2>④ 路边装饰件（8 种）</h2>
+<p class="note">按城市原型加权组合；金拱门店每周期固定出现在所有城市。左三为原有资产收编，右五为本次新增。</p>
+<div id="props" class="grid big"></div>
+
+<h2>⑤ 城市地标（12 座）</h2>
+<p class="note">主要城市每圈在赛道远端出现一次本城地标。</p>
+<div id="lands" class="grid land"></div>
+
+<script type="module">
+import Phaser from 'phaser';
+import { FOOD_VARIANTS } from '/src/data/foodArt.ts';
+import { createFoodTextures } from '/src/data/createFoodTextures.ts';
+import { createWorldTextures, SCENERY_KEYS } from '/src/data/createWorldTextures.ts';
+import { ARCHETYPES, LANDMARKS } from '/src/data/cityProfiles.ts';
+import { ROUND_WEATHER, applyWeather } from '/src/systems/weather.ts';
+
+const hex = n => '#' + n.toString(16).padStart(6, '0');
+const PALETTE_ORDER = ['grass','shoulder','road','roadAlt','lane','border','curb','curbAlt','horizonBand','horizonHill','horizonHillAlt'];
+const FAMILY_NAMES = {
+  burger: '汉堡家族（前炮台）', fries: '薯条家族（前炮台）', missile: '麦辣制导（前炮台）',
+  flame: '辣堡家族（后炮台）', starter: '后置散弹（内置）', mine: '鸡块地雷（后炮台）', ice: '冰冻射线（后炮台）',
+  cola: '可乐喷泉（辅助）', coffee: '咖啡涡轮（辅助）', desperate: '绝境提速（辅助）',
+  heal: '回复光环（辅助）', shield: '甜筒护盾（辅助）', wingman: '开心乐园僚车（辅助）',
+};
+const PROP_NAMES = {
+  tree: '圆顶树', building: '积木楼', cafe: '金拱门店', palm: '棕榈', 'autumn-tree': '秋色树', lantern: '灯笼柱', billboard: '霓虹金拱招牌', pavilion: '飞檐亭',
+};
+const HORIZON_NAMES = { hills: '山丘', sea: '海面', skyline: '楼群剪影', ridges: '层叠山脊' };
+const CITY_OF = { metro: '上海 广州 深圳 武汉 长沙 郑州 东莞 佛山', seaside: '青岛 厦门 三亚 大连 海口 珠海 宁波 福州 温州 南通', jiangnan: '杭州 苏州 合肥 南宁 南昌 无锡 常州', northern: '天津 济南 沈阳 长春 哈尔滨 石家庄', southwest: '成都 重庆 昆明 贵阳', ancient: '北京 西安 南京 泉州 太原', classic: '未选城时的标题/选车背景' };
+
+class PreviewScene extends Phaser.Scene {
+  create() {
+    createFoodTextures(this);
+    createWorldTextures(this);
+    const url = key => this.textures.get(key).getSourceImage().toDataURL();
+
+    // ① 餐品变体
+    const food = document.getElementById('food');
+    for (const [family, list] of Object.entries(FOOD_VARIANTS)) {
+      const h = document.createElement('div');
+      h.className = 'family';
+      h.textContent = FAMILY_NAMES[family] || family;
+      food.append(h);
+      const row = document.createElement('div');
+      row.className = 'grid';
+      for (const v of list) {
+        row.insertAdjacentHTML('beforeend', `<div class="cell food"><div class="box"><img src="${url(v.key)}"></div><b>${v.label}</b><small>${v.key}</small></div>`);
+      }
+      food.append(row);
+    }
+
+    // ② 城市原型
+    const arch = document.getElementById('arch');
+    for (const a of Object.values(ARCHETYPES)) {
+      arch.insertAdjacentHTML('beforeend', `
+        <div class="arch">
+          <h3>${a.name}</h3>
+          <div class="meta">地平线：${HORIZON_NAMES[a.horizon]} · 装饰：${a.props.map(p => PROP_NAMES[p] || p).join(' / ')}</div>
+          <div class="meta">代表城市：${CITY_OF[a.id] || ''}</div>
+          <div class="chips">${PALETTE_ORDER.map(k => `<i style="background:${hex(a.palette[k])}"></i>`).join('')}</div>
+        </div>`);
+    }
+
+    // ③ 天气
+    const wx = document.getElementById('weather');
+    for (const pair of [['经典公路', ARCHETYPES.classic.palette], ['滨海大道（青岛）', ARCHETYPES.seaside.palette]]) {
+      const label = pair[0], base = pair[1];
+      for (let r = 1; r <= 4; r++) {
+        const p = applyWeather(base, r);
+        wx.insertAdjacentHTML('beforeend', `<div class="wx-row"><b>${label} · ${ROUND_WEATHER[r - 1].name}</b><div class="chips">${PALETTE_ORDER.map(k => `<i style="background:${hex(p[k])}"></i>`).join('')}</div><span>${ROUND_WEATHER[r - 1].note}</span></div>`);
+      }
+    }
+
+    // ④ 装饰件
+    const props = document.getElementById('props');
+    for (const key of SCENERY_KEYS) {
+      props.insertAdjacentHTML('beforeend', `<div class="cell big"><div class="box"><img src="${url(key)}"></div><b>${PROP_NAMES[key] || key}</b><small>${key}</small></div>`);
+    }
+
+    // ⑤ 地标
+    const lands = document.getElementById('lands');
+    for (const [city, def] of Object.entries(LANDMARKS)) {
+      lands.insertAdjacentHTML('beforeend', `<div class="cell land"><div class="box"><img src="${url(def.key)}"></div><b>${city} · ${def.name}</b><small>${def.key}</small></div>`);
+    }
+    document.title = '美术素材总览 · 就绪';
+  }
+}
+window.__game = new Phaser.Game({
+  type: Phaser.CANVAS,
+  width: 8, height: 8,
+  parent: document.body,
+  style: { position: 'absolute', left: '-100px', top: '-100px' },
+  scene: [PreviewScene],
+});
+</script>
+</body>
+</html>

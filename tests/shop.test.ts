@@ -1,132 +1,162 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { demoSnapshot } from '../src/data/snapshot';
-import { loadSnapshot } from '../src/data/loadSnapshot';
-import { mapProductToWeapon, stats } from '../src/combat/weaponMapper';
-import { ShopSystem } from '../src/systems/ShopSystem';
-import { WeaponSystem } from '../src/combat/WeaponSystem';
-import { CombatSystem } from '../src/combat/CombatSystem';
-import { DriftPhysics } from '../src/systems/DriftPhysics';
-import { WaveSystem } from '../src/systems/WaveSystem';
-import { FIXED_DT } from '../src/config';
-function setup() { const shop = new ShopSystem(demoSnapshot(), () => .5); shop.open(1); const combat = new CombatSystem({ explode() {} }); const physics = new DriftPhysics(); return {shop, combat, physics, weapons: new WeaponSystem(shop.slots, combat)}; }
-test('catalog maps all menu variants and uses exact catalog damage/levels', () => {
-  const p = demoSnapshot().stores[0].products[0];
-  for (const [name,type] of [['巨无霸','burger'],['麦辣鸡腿堡','missile'],['中薯条','fries'],['麦乐鸡','mine'],['可口可乐','cola'],['柠檬红茶','ice'],['拿铁咖啡','coffee'],['浓缩咖啡','desperate'],['苹果派','heal'],['甜筒','shield'],['开心乐园餐','wingman']]) assert.equal(mapProductToWeapon({...p,name}),type);
-  assert.deepEqual(stats.burger.damage,[40,60,90,125,170]); assert.deepEqual(stats.fries.count,[5,7,9,11,13]); assert.deepEqual(stats.cola.range,[60,80,100,120,140]);
-});
-test('shop draws three menu products, deducts once, upgrades same name without consuming slots and caps Lv5', () => {
-  const {shop,combat} = setup(); combat.money = 1000;
-  shop.offers = demoSnapshot().stores[0].products.slice(0,3);
-  const price = shop.price(shop.offers[0]);
-  assert.equal(shop.buy(0,combat),'bought'); assert.equal(combat.money,1000-price);
-  const mountedAt = shop.slots.findIndex(w => w?.name === shop.offers[0]!.name);
-  assert.ok(mountedAt >= 0);
-  assert.equal(shop.buy(0,combat),'unavailable');
-  for (let l=2;l<=5;l++) { shop.sold.clear(); assert.equal(shop.buy(0,combat),'bought'); assert.equal(shop.slots[mountedAt]?.level,l); }
-  shop.sold.clear(); assert.equal(shop.buy(0,combat),'unavailable');
-  assert.equal(shop.slots.filter(Boolean).length, shop.slots.some(w => w?.type === 'starter') ? 2 : 1);
-});
-test('upgrades cost a per-level premium while coupons keep discounting them', () => {
-  const {shop,combat} = setup(); combat.money = 10000;
-  const offer = demoSnapshot().stores[0].products.find(p => p.name === '巨无霸')!;
-  shop.offers = [offer];
-  const base = shop.basePrice(offer);
-  shop.discount = 1;
-  const spent: number[] = [];
-  for (let level = 0; level < 5; level++) {
-    assert.equal(shop.price(offer, level), Math.max(1, Math.ceil(base * [1, 1.8, 2.8, 4.2, 6][level])));
-    shop.buy(0, combat); spent.push(combat.money);
-    shop.sold.clear();
-  }
-  for (let i = 1; i < spent.length; i++) assert.ok(spent[i] < spent[i - 1]);
-  shop.discount = 0.9;
-  assert.equal(shop.price(offer, 2), Math.max(1, Math.ceil(Math.ceil(base * 2.8) * 0.9)));
-});
-test('round one benches boss-killer guns; round two puts them up front', () => {
-  const template = demoSnapshot().stores[0].products[0]!;
+import { ShopSystem, MODULE_SLOTS, SLOT_FRONT, SLOT_REAR } from '../src/systems/ShopSystem';
+import { weaponById, MODULES } from '../src/combat/weaponCatalog';
+import { migrateV5Slots } from '../src/systems/SaveSystem';
+
+function setup() {
   const snapshot = demoSnapshot();
-  snapshot.stores = [{ ...snapshot.stores[0]!, products: [
-    { ...template, id: 'a', name: '巨无霸' },
-    { ...template, id: 'b', name: '开心乐园餐' },
-    { ...template, id: 'c', name: '麦辣鸡腿堡' },
-  ] }];
+  snapshot.stores = [snapshot.stores[0]!]; // 全品门店：映射断言不受洗牌门店影响
   const shop = new ShopSystem(snapshot, () => .5);
   shop.open(1);
-  assert.equal(mapProductToWeapon(shop.offers[0]), 'burger');
-  assert.ok(shop.offers.slice(1).every(p => ['missile', 'wingman'].includes(mapProductToWeapon(p))));
-  shop.open(6);
-  assert.ok(['missile', 'wingman'].includes(mapProductToWeapon(shop.offers[0])));
-  assert.equal(mapProductToWeapon(shop.offers[2]), 'burger');
+  return shop;
+}
+function product(name: string) {
+  const template = demoSnapshot().stores[0].products[0]!;
+  return { ...template, id: name, name };
+}
+const wallet = (money: number) => ({ money, health: 100 });
+
+test('identity mapping: same-weaponId dishes feed each other, others replace', () => {
+  const shop = setup();
+  shop.offers = [product('巨无霸'), product('巨无霸（大份）'), product('麦香鱼')];
+  const w = wallet(999);
+  assert.equal(shop.buy(0, w), 'bought');
+  assert.equal(shop.slots[SLOT_FRONT]!.weaponId, 'W01');
+  // 大小份/别名归入同一身份：喂养同一件武器而不是占第二个槽。
+  assert.equal(shop.buy(1, w), 'bought');
+  assert.equal(shop.slots[SLOT_FRONT]!.level, 2);
+  // 麦香鱼的专属武器 W04 尚未实装 → 通用改装·前炮，是另一件武器：走替换流程。
+  assert.equal(shop.buy(2, w), 'replace');
 });
-test('purchases route to their mounts: front gun, rear gun, aux fills in order; the scatter gun is built in', () => {
-  const {shop,combat} = setup(); combat.money = 1000; shop.open(1);
-  // Store 1 offers: 中薯条 front · 苹果派 aux · 麦乐鸡 rear
-  assert.equal(mapProductToWeapon(shop.offers[0]!),'fries'); assert.equal(mapProductToWeapon(shop.offers[1]!),'heal'); assert.equal(mapProductToWeapon(shop.offers[2]!),'mine');
-  assert.equal(shop.buy(0,combat),'bought'); assert.equal(shop.slots[0]?.type,'fries');
-  assert.equal(shop.buy(1,combat),'bought'); assert.equal(shop.slots[2]?.type,'heal');
-  assert.equal(shop.buy(2,combat),'bought'); assert.equal(shop.slots[1]?.type,'mine');
-  assert.ok(shop.slots.every(w => w?.type !== 'starter'));
+
+test('products route to their mounts; the scatter gun is a real replaceable occupant', () => {
+  const shop = setup();
+  shop.offers = [product('巨无霸'), product('板烧鸡腿堡'), product('可口可乐')];
+  const w = wallet(999);
+  assert.equal(shop.weaponFor(shop.offers[0]), 'W01');
+  assert.equal(shop.weaponFor(shop.offers[1]), 'W07');
+  assert.equal(shop.weaponFor(shop.offers[2]), 'generic-rear');
+  assert.equal(shop.slots[SLOT_REAR]?.weaponId, 'scatter', 'run starts with the scatter');
+  assert.equal(shop.buy(0, w), 'bought');
+  assert.equal(shop.slots[SLOT_FRONT]!.weaponId, 'W01');
+  assert.equal(shop.buy(1, w), 'replace', 'rear slot holds the scatter — displacement is explicit');
+  assert.equal(shop.buy(1, w, SLOT_REAR), 'bought');
+  assert.equal(shop.slots[SLOT_REAR]!.weaponId, 'W07');
+  assert.ok(!shop.slots.some(x => x?.weaponId === 'scatter'), 'scatter does not linger after the swap');
 });
-test('replacement picks only mounts the offer fits: a front gun cannot displace aux or rear slots', () => {
-  const {shop,combat} = setup(); combat.money=100;
-  shop.offers = [demoSnapshot().stores[0].products.find(p => p.name === '巨无霸')!];
-  for(let i=0;i<5;i++) shop.slots[i]={ name:`old-${i}`,type:'burger',level:1,cooldown:0 };
-  const name=shop.offers[0].name, cost=shop.price(shop.offers[0]);
-  assert.equal(shop.buy(0,combat),'replace'); assert.equal(combat.money,100);
-  shop.pending=-1;
-  assert.equal(shop.buy(0,combat,2),'replace'); assert.equal(combat.money,100); assert.equal(shop.slots[2]?.name,'old-2');
-  shop.pending=-1;
-  assert.equal(shop.buy(0,combat,0),'bought'); assert.equal(shop.slots[0]?.name,name); assert.equal(combat.money,100-cost);
-  combat.money=0; assert.equal(shop.buy(0,combat),'unavailable');
+
+test('Lv.3 demands an explicit branch choice; the chosen branch is saved on the weapon', () => {
+  const shop = setup();
+  shop.offers = [product('巨无霸')];
+  const w = wallet(9999);
+  for (let i = 0; i < 2; i++) { assert.equal(shop.buy(0, w), 'bought'); shop.sold.clear(); }
+  assert.equal(shop.slots[SLOT_FRONT]!.level, 2);
+  assert.equal(shop.buy(0, w), 'branch', 'Lv.3 without a branch refuses to settle');
+  assert.equal(shop.buy(0, w, -1, 'a'), 'bought');
+  assert.equal(shop.slots[SLOT_FRONT]!.branch, 'a');
+  assert.equal(weaponById('W01').branches![0].name, '压路重炮');
 });
-test('repair costs ten, restores thirty and refuses full health or insufficient funds', () => {
-  const {shop,combat} = setup(); combat.money=20; combat.health=85;
-  assert.equal(shop.repair(combat),true); assert.equal(combat.health,100); assert.equal(combat.money,10);
-  assert.equal(shop.repair(combat),false); combat.health=20; combat.money=9; assert.equal(shop.repair(combat),false);
+
+test('replacement credits half of the invested coins and never pays out cash', () => {
+  const shop = setup();
+  shop.offers = [product('巨无霸'), product('扭扭薯条')];
+  const w = wallet(999);
+  assert.equal(shop.buy(0, w), 'bought');
+  const invested = shop.slots[SLOT_FRONT]!.invested;
+  assert.ok(invested > 0);
+  const balanceBefore = w.money;
+  assert.equal(shop.buy(1, w), 'replace');
+  const gross = shop.price(shop.offers[1], 0);
+  const credit = shop.replacementCredit(SLOT_FRONT);
+  assert.equal(credit, Math.floor(invested * 0.5));
+  assert.equal(shop.buy(1, w, SLOT_FRONT), 'bought');
+  assert.equal(w.money, balanceBefore - (gross - credit), 'credit discounts the new install');
+  assert.equal(shop.slots[SLOT_FRONT]!.invested, gross - credit, 'invested tracks what was actually paid');
+  assert.ok(w.money < balanceBefore, 'the swap still costs money — credit is not cashback');
 });
-test('food weapons attack automatically, the built-in scatter gun stays on with rear mounts, fries slows and burger pierces', () => {
-  for (const type of ['burger','fries','cola','ice','flame','mine'] as const) {
-    const {shop,combat,physics,weapons}=setup();
-    physics.vx=physics.vy=physics.speed=0;
-    const mounts = shop.mountsFor(type);
-    shop.slots[mounts[0]!] = {name:type,type,level:3,cooldown:0}; weapons.configure(physics);
-    assert.equal(combat.starterEnabled,true);
-    const enemy=combat.spawn(0,0,physics.progress + (type==='flame'||type==='mine'?-60: type==='cola'?75:110))!;
-    enemy.hp=1000;
-    for(let i=0;i<40;i++){combat.step(physics,FIXED_DT);weapons.step(physics,FIXED_DT);}
-    assert.ok(enemy.hp<1000,`${type} must damage its target`);
-    if(type==='ice') assert.equal(enemy.slow,0);
-  }
-  const {shop,combat,physics,weapons}=setup(); shop.slots[0]={name:'堡',type:'burger',level:3,cooldown:0};
-  for(let i=0;i<3;i++) combat.spawn(0,0,physics.progress+100+i*50);
-  weapons.step(physics,FIXED_DT);
-  for(let i=0;i<30;i++) combat.step(physics,FIXED_DT);
-  assert.equal(combat.kills,3);
+
+test('free front-gun service installs once at the first stop only', () => {
+  const shop = setup();
+  assert.equal(shop.freeFrontAvailable(), true);
+  assert.equal(shop.installFrontService(), true);
+  assert.equal(shop.slots[SLOT_FRONT]!.weaponId, 'service-front');
+  assert.equal(shop.slots[SLOT_FRONT]!.invested, 0, 'the service is free and grants no credit');
+  assert.equal(shop.freeFrontAvailable(), false);
+  const later = setup();
+  later.open(2);
+  assert.equal(later.freeFrontAvailable(), false, 'only the first stop offers the install');
 });
-test('coffee caps passive speed, heals and shields apply and cease when removed', () => {
-  const {shop,combat,physics,weapons}=setup();
-  shop.slots[0]={name:'咖啡',type:'coffee',level:3,cooldown:0};shop.slots[1]={name:'浓缩',type:'desperate',level:3,cooldown:0};
-  combat.health=20; weapons.configure(physics);assert.equal(physics.speedBonus,.25);assert.equal(physics.chargeBonus,.3);assert.equal(physics.nitroRegen,1);
-  shop.slots[1]={name:'派',type:'heal',level:3,cooldown:0};shop.slots[2]={name:'甜筒',type:'shield',level:3,cooldown:0};
-  for(let i=0;i<601;i++)weapons.step(physics,FIXED_DT);
-  assert.equal(combat.shields,1);assert.equal(combat.health,25);
-  shop.slots.fill(null);weapons.configure(physics);weapons.step(physics,FIXED_DT);assert.equal(physics.speedBonus,0);assert.equal(combat.shields,0);
+
+test('vehicle modules buy into their own slots, one each, priced as services', () => {
+  const shop = setup();
+  const w = wallet(999);
+  for (const mod of MODULES) assert.ok(shop.modulePrice(mod.id) > 0, `${mod.id} needs a price`);
+  assert.equal(shop.buyModule('M-drift', w), true);
+  assert.equal(shop.buyModule('M-drift', w), false, 'same module never stacks');
+  assert.equal(shop.buyModule('M-bumper', w), true);
+  assert.equal(shop.buyModule('M-pump', w), true);
+  assert.equal(shop.buyModule('M-drift', w), false, 'module slots are full anyway');
+  assert.deepEqual(shop.slots[MODULE_SLOTS[0]]!.weaponId, 'M-drift');
 });
-test('exit pauses wave countdown then grants a full two second turbo with collision immunity', () => {
-  const {combat,physics}=setup(), wave=new WaveSystem();wave.state='pit';wave.pitProgress=physics.progress;
-  wave.next(combat,physics);
-  while(String(wave.state)==='exiting')wave.step(physics,combat,FIXED_DT);
-  assert.equal(wave.remaining,44);assert.equal(physics.nitroTime,2);assert.equal(physics.speed,510);
-  const hp=combat.health;combat.spawn(1,physics.x-225,physics.progress);combat.step(physics,FIXED_DT);assert.equal(combat.health,hp);
+
+test('upgrade service backs up growth when no material dish is in this store', () => {
+  const shop = setup();
+  shop.offers = [product('柠檬红茶')]; // 店里没有巨无霸
+  const w = wallet(999);
+  shop.slots[SLOT_FRONT] = { weaponId: 'W01', name: '巨无霸', level: 1, cooldown: 0, invested: 40, art: 'food-burger-double' };
+  assert.equal(shop.lacksMaterial(shop.slots[SLOT_FRONT]!), true);
+  const cost = shop.upgradeServiceCost(SLOT_FRONT);
+  assert.equal(cost, Math.ceil(14 * 1.8), 'service price = base × current-level multiplier');
+  assert.equal(shop.upgradeService(SLOT_FRONT, w), 'bought');
+  assert.equal(shop.slots[SLOT_FRONT]!.level, 2);
+  assert.equal(shop.slots[SLOT_FRONT]!.invested, 40 + cost);
+  assert.equal(w.money, 999 - cost);
+  // Lv.3 同样要求显式分支。
+  shop.upgradeService(SLOT_FRONT, w);
+  assert.equal(shop.upgradeService(SLOT_FRONT, w), 'branch');
+  assert.equal(shop.upgradeService(SLOT_FRONT, w, 'b'), 'bought');
+  assert.equal(shop.slots[SLOT_FRONT]!.branch, 'b');
 });
-test('startup makes one request and returns an explicitly demo snapshot on offline/bad payload', async () => {
-  const original=globalThis.fetch;let count=0;
-  try { globalThis.fetch=async()=>{count++;throw new Error('offline');}; const data=await loadSnapshot();assert.equal(count,1);assert.equal(data.snapshot.mode,'demo');assert.match(data.reason,/离线示例/); }
-  finally{globalThis.fetch=original;}
+
+test('featured cards prioritise implemented exclusive weapons over generic fallbacks', () => {
+  const shop = setup();
+  const kinds = shop.offers.slice(0, 3).map(p => shop.weaponFor(p));
+  assert.ok(kinds.every(k => k === 'W01' || k === 'W07' || k === 'W12' || k === 'generic-front' || k === 'generic-rear'));
+  const hasExclusive = shop.offers.slice(0, 3).some(p => ['W01', 'W07', 'W12'].includes(shop.weaponFor(p)));
+  assert.equal(hasExclusive, true, 'demo menu always surfaces an implemented weapon up front');
 });
-test('an enemy killed by overlapping aura effects yields its reward only once', () => {
-  const {combat}=setup();const enemy=combat.spawn(2,0,0)!;
-  combat.hit(enemy,100);combat.hit(enemy,100);
-  assert.equal(combat.kills,1);assert.equal(combat.coins.activeCount,1);
+
+test('repair pricing is unchanged and refuses full health or broke wallets', () => {
+  const shop = setup();
+  const w = wallet(20);
+  w.health = 85;
+  assert.equal(shop.repair(w), true);
+  assert.equal(w.health, 100);
+  assert.equal(w.money, 10);
+  assert.equal(shop.repair(w), false);
+  w.health = 20; w.money = 9;
+  assert.equal(shop.repair(w), false);
+});
+
+test('v5 saves migrate by dish name without inventing branches or credit', () => {
+  const slots = migrateV5Slots({
+    slots: [
+      { name: '巨无霸', type: 'burger', level: 3 },
+      { name: '麦乐鸡', type: 'mine', level: 2 },
+      { name: '甜筒', type: 'shield', level: 1 },
+      null,
+      null,
+    ],
+  });
+  assert.equal(slots![0]!.weaponId, 'W01', '巨无霸 derives its real prototype');
+  assert.equal(slots![0]!.level, 3);
+  assert.equal(slots![0]!.branch, undefined, 'migration never picks a branch for the player');
+  assert.equal(slots![0]!.invested, 0, 'unknown investment grants no replacement credit');
+  assert.equal(slots![1]!.weaponId, 'generic-rear', '未实装的旧后槽武器落到通用改装');
+  // 旧辅助位被动随模块层退役；后槽 starter 还原为初始散弹。
+  assert.equal(slots![2], null);
+  const scatterRear = migrateV5Slots({ slots: [null, { name: '后置散弹', type: 'starter', level: 1 }, null, null, null] });
+  assert.equal(scatterRear![1]!.weaponId, 'scatter');
 });

@@ -3,14 +3,7 @@ import type { DriftPhysics } from '../systems/DriftPhysics';
 import type { CombatSystem } from './CombatSystem';
 import type { TrackProjection } from '../systems/TrackProjection';
 import type { Theme } from '../systems/Theme';
-import type { WeaponType } from './weaponMapper';
 import { BULLET_SCALE } from '../data/foodArt';
-const ENEMY_TEXTURES = ['cone', 'cart', 'rider', 'truck'];
-const HIT_TEXTURES = ['cone-hit', 'cart-hit', 'rider-hit', 'truck-hit'];
-const BULLET_TEXTURES = ['bullet', 'burger-bullet', 'fries-bullet', 'toy-bullet', 'missile-bullet'];
-/** Mount barrel tints per installed gun so the car shows what is actually bolted on. */
-const REAR_TINTS: Record<string, number> = { starter: 0xffffff, flame: 0xe75239, mine: 0xffcf52, ice: 0x80c6c3 };
-const FRONT_TINTS: Record<string, number> = { burger: 0xedb355, fries: 0xffcf52, missile: 0xff9d7a };
 /** Sprites (including three cached digit sprites per damage number) are created once. */
 export class CombatView {
   private readonly enemies: Phaser.GameObjects.Image[] = [];
@@ -46,7 +39,7 @@ export class CombatView {
       const texture = e.flash > 0 ? HIT_TEXTURES[e.kind] : ENEMY_TEXTURES[e.kind]; if (image.texture.key !== texture) image.setTexture(texture);
       this.place(image, e.px + (e.x - e.px) * alpha, e.pz + (e.z - e.pz) * alpha, 1);
       if (image.visible) this.visibleEnemies++;
-      image.setTint(e.slowTime > 0 ? 0x80c6c3 : e.kind === 3 ? 0xffffff : campaignTint);
+      image.setTint(e.slowTime > 0 ? 0x80c6c3 : e.armorBreak > 0 ? 0xffcf52 : e.kind === 3 ? 0xffffff : campaignTint);
       // Riders breaking off the chase turn their bike around and ride down-screen.
       image.setRotation(e.kind === 1 ? Math.sign(e.vx) * 0.22
         : e.kind === 2 ? (e.x - e.px) * 0.08 + (m.entering && e.vz < -30 ? Math.PI : 0) : 0);
@@ -61,18 +54,19 @@ export class CombatView {
     for (let i = 0; i < this.bullets.length; i++) {
       const b = m.bullets.items[i], image = this.bullets[i];
       if (!b.active) { image.setVisible(false); continue; }
-      // Variant art (per product name) wins; kind fallback covers the built-in
-      // scatter gun and escort toys. Variant textures are drawn ~2× for shop
-      // clarity, so scale them back to the legacy bullet size class.
+      // 弹丸贴图：专属武器弹用食物变体美术；其余按 kind 回落默认弹幕。
       const texture = b.tex || BULLET_TEXTURES[b.kind] || 'bullet';
       if (image.texture.key !== texture) image.setTexture(texture);
       this.place(image, b.px + (b.x - b.px) * alpha, b.pz + (b.z - b.pz) * alpha, BULLET_SCALE[b.tex] ?? 1);
       if (image.visible) this.visibleBullets++;
-      // Variant art carries its own colors; the golden tint remains the Lv3+
-      // "charged" signal on top of it. Kind fallbacks keep the legacy tints.
-      const charged = (b.kind === 1 || b.kind === 2) && b.level >= 3;
-      image.setTint(b.tex ? (charged ? 0xffcf52 : 0xffffff) : b.kind === 1 ? (b.level >= 3 ? 0xffcf52 : 0xad713a) : b.kind === 2 ? 0xffcf52 : b.kind === 4 ? 0xff9d7a : 0xffffff);
-      if (b.kind === 1 && b.level >= 3) image.setScale(image.scaleX * (b.level >= 5 ? 1.8 : 1.5), image.scaleY * (b.level >= 5 ? 1.8 : 1.5));
+      // 重炮随贯穿衰减逐渐变暗，Lv3+ 保持「蓄能」金色信号；贯穿弹头加尺寸。
+      let tint = 0xffffff;
+      if (b.kind === 1) tint = b.level >= 3 ? 0xffcf52 : 0xad713a;
+      else if (b.kind === 2) tint = 0xffcf52;
+      image.setTint(b.tex ? (b.level >= 3 ? 0xffcf52 : 0xffffff) : tint);
+      let size = 1;
+      if (b.kind === 1 && b.level >= 3) size *= 1.5;
+      if (size !== 1) image.setScale(image.scaleX * size, image.scaleY * size);
       image.setRotation(Math.atan2(b.vx, b.vz));
     }
     for (let i = 0; i < this.coins.length; i++) {
@@ -96,7 +90,7 @@ export class CombatView {
       }
     }
   }
-  drawTurret(p: DriftPhysics, alpha: number, kick: number, front: WeaponType | null, rear: WeaponType): void {
+  drawTurret(p: DriftPhysics, alpha: number, kick: number, front: string | null, rear: string | null): void {
     const heading = p.previousHeading + (p.heading - p.previousHeading) * alpha;
     const x = p.previousX + (p.x - p.previousX) * alpha - 225;
     const z = p.previousProgress + (p.progress - p.previousProgress) * alpha;
@@ -107,9 +101,11 @@ export class CombatView {
     const sx = projection.x, sy = projection.y, scale = projection.scale;
     projection.project(rz + this.model.aimZ * 45, rx + this.model.aimX * 45);
     const angle = Math.atan2(projection.x - sx, sy - projection.y);
-    this.turret.setPosition(sx, sy - 5 + kick).setRotation(angle).setScale(scale, scale * 0.85)
-      .setVisible(true).setDepth(10 + sy / 100 + 0.05).setAlpha(this.model.muzzleFlash > 0 ? 0.7 : 1)
-      .setTint(REAR_TINTS[rear] ?? 0xffffff);
+    if (rear) {
+      this.turret.setPosition(sx, sy - 5 + kick).setRotation(angle).setScale(scale, scale * 0.85)
+        .setVisible(true).setDepth(10 + sy / 100 + 0.05).setAlpha(this.model.muzzleFlash > 0 ? 0.7 : 1)
+        .setTint(REAR_TINTS[rear] ?? 0xffffff);
+    } else this.turret.setVisible(false);
     if (front) {
       const fx = x + Math.sin(heading) * 24, fz = z + Math.cos(heading) * 24;
       projection.project(fz, fx);
@@ -123,3 +119,10 @@ export class CombatView {
 
 }
 const DIGITS = ['digit0', 'digit1', 'digit2', 'digit3', 'digit4', 'digit5', 'digit6', 'digit7', 'digit8', 'digit9'];
+const ENEMY_TEXTURES = ['cone', 'cart', 'rider', 'truck'];
+const HIT_TEXTURES = ['cone-hit', 'cart-hit', 'rider-hit', 'truck-hit'];
+/** 弹种默认贴图：0 散弹 · 1 重炮 · 2 薯刃 · 3 直射。 */
+const BULLET_TEXTURES = ['bullet', 'burger-bullet', 'fries-bullet', 'bullet'];
+/** Mount barrel tints per installed weaponId so the car shows what is bolted on. */
+const REAR_TINTS: Record<string, number> = { scatter: 0xffffff, W07: 0xe75239, 'generic-rear': 0xd9a24b };
+const FRONT_TINTS: Record<string, number> = { W01: 0xedb355, W12: 0xffcf52, 'service-front': 0x9aa39a, 'generic-front': 0x9aa39a };

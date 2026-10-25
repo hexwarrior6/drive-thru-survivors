@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { carById } from '../data/cars';
-import { weaponNames } from '../combat/weaponMapper';
+import { weaponById } from '../combat/weaponCatalog';
 import { bossName, bossTierOf } from '../systems/balance';
 import { recordRun, type HallEntry } from '../systems/SaveSystem';
-import type { WeaponType } from '../combat/weaponMapper';
+import type { SavedSlot } from '../systems/SaveSystem';
 
 interface RunSummary {
   victory: boolean;
@@ -13,10 +13,12 @@ interface RunSummary {
   kills: number;
   maxCombo: number;
   money: number;
-  slots: ({ name: string; type: WeaponType; level: number } | null)[];
+  slots: (SavedSlot | null)[];
   campaign: string;
   theme: string;
 }
+
+const slotName = (w: SavedSlot): string => `${weaponById(w.weaponId).name}${w.branch ? ' · ' + (w.branch === 'a' ? '分支A' : '分支B') : ''} Lv.${w.level}`;
 
 /** Final settlement: totals, the six-slot build, local records and one more run. */
 export class ResultScene extends Phaser.Scene {
@@ -41,7 +43,7 @@ export class ResultScene extends Phaser.Scene {
       ...parts.map(w => {
         const chip = document.createElement('span');
         chip.className = 'result-weapon';
-        chip.textContent = w ? `${weaponNames[w.type]} Lv.${w.level}` : '空槽';
+        chip.textContent = w ? slotName(w) : '空槽';
         return chip;
       }),
     );
@@ -53,7 +55,7 @@ export class ResultScene extends Phaser.Scene {
     set('result-money', String(summary?.money ?? 0));
     // Local hall of records: distance, kills, combo, wave and the last three builds.
     const entry: HallEntry = {
-      car: car.id, build: parts.filter(Boolean).map(w => `${weaponNames[w!.type]} Lv.${w!.level}`),
+      car: car.id, build: parts.filter(Boolean).map(w => slotName(w!)),
       wave: summary?.wave ?? 1, distance: summary?.distance ?? 0, kills: summary?.kills ?? 0,
       maxCombo: summary?.maxCombo ?? 0, victory, at: new Date().toISOString(),
     };

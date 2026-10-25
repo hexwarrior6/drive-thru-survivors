@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { discoveryScore, normalizeProductName, productHighlight } from '../src/data/menuDiscovery';
 import { demoSnapshot, snapshotSchema } from '../src/data/snapshot';
-import { ShopSystem } from '../src/systems/ShopSystem';
+import { ShopSystem, SLOT_REAR } from '../src/systems/ShopSystem';
 import { buildSnapshot, classify, type McpCall } from '../server/mcp';
 import { loadSnapshot } from '../src/data/loadSnapshot';
 
@@ -20,17 +20,24 @@ test('random route stays stable, visits each store before repeats and avoids con
   const a=new ShopSystem(snapshot,()=>0),b=new ShopSystem(snapshot,()=>.999);
   assert.notEqual(a.destination(1).id,b.destination(1).id);
 });
-test('menu differences rank ahead of common items and allow buying the remaining menu', () => {
+test('implemented weapons top the cards, discovery ranks the rest, whole menu stays buyable', () => {
   const snapshot = demoSnapshot();
   snapshot.stores = [snapshot.stores[0]];
   snapshot.stores[0].products[4].menuPresence = {stores:1,compared:4};
   const shop = new ShopSystem(snapshot,()=>.5);shop.open(1);
-  assert.equal(shop.offers[0].name,'可口可乐');
+  // §9.2：已实装专属武器的餐品进前三张推荐卡（巨无霸 → W01）。
+  assert.equal(shop.offers[0].name,'巨无霸');
+  // 餐品发现度继续决定其余卡片的顺序：1/4 门店有售的可口可乐排在其组首位。
+  assert.equal(shop.offers[1].name,'可口可乐');
   assert.equal(shop.offers.length,snapshot.stores[0].products.length);
-  const wallet={money:1000,health:100};assert.equal(shop.buy(4,wallet),'bought');
-  assert.ok(shop.slots.some(w=>w?.name===shop.offers[4].name));
-  assert.match(productHighlight(shop.offers[0]),/1\/4/);
-  assert.ok(!productHighlight(shop.offers[0]).includes('独家'));
+  // 可口可乐 → 通用改装·尾炮（W21 未实装），后槽被初始散弹占据 → 显式替换。
+  const colaIndex = shop.offers.findIndex(p => p.name === '可口可乐');
+  const wallet={money:1000,health:100};
+  assert.equal(shop.buy(colaIndex,wallet),'replace');
+  assert.equal(shop.buy(colaIndex,wallet,SLOT_REAR),'bought');
+  assert.ok(shop.slots.some(w=>w?.name==='可口可乐'));
+  assert.match(productHighlight(shop.offers[1]),/1\/4/);
+  assert.ok(!productHighlight(shop.offers[1]).includes('独家'));
 });
 test('comparison normalizes names and single-store menus never claim uniqueness', () => {
   assert.equal(normalizeProductName(' 麦咖啡（大杯） '),normalizeProductName('麦咖啡(大杯)'));

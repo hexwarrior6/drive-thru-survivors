@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 import { StressMeter } from '../src/combat/StressMeter';
 import { ObjectPool } from '../src/utils/ObjectPool';
-import { CombatSystem, MAGNET_RANGE, WEAPON_RANGE, SHOT_INTERVAL, interceptTime } from '../src/combat/CombatSystem';
+import { CombatSystem, MAGNET_RANGE, WEAPON_RANGE, interceptTime } from '../src/combat/CombatSystem';
+import { WeaponSystem } from '../src/combat/WeaponSystem';
 import { PIT_ENTRY_SECONDS, PIT_PLAYER_X } from '../src/systems/PitStopLayout';
 import { WaveSystem } from '../src/systems/WaveSystem';
 import { DriftPhysics } from '../src/systems/DriftPhysics';
@@ -21,27 +22,29 @@ test('fixed pools reuse exact slots, reject overflow and tolerate duplicate rele
   for (let i = 0; i < 10000; i++) { const item = pool.acquire()!; pool.release(item); }
   assert.equal(allocations, 2); assert.equal(pool.items.length, 2); assert.equal(b.active, false);
 });
-test('rear turret targets nearby pursuers in either direction and leaves road obstacles for driving', () => {
+test('the rear scatter gun targets nearby pursuers in either direction and leaves road obstacles for driving', () => {
   const c = new CombatSystem(silent), p = new DriftPhysics();
+  const w = new WeaponSystem([null, { weaponId: 'scatter', name: '初始散弹炮', level: 1, cooldown: 0, invested: 0, art: 'food-starter' }, null, null, null], c);
   c.spawn(0, 0, 80); c.spawn(1, 80, -80); c.spawn(2, 0, -WEAPON_RANGE - 1);
   assert.equal(c.nearest(0, 0), null);
   const far = c.spawn(2, 80, -300)!, near = c.spawn(2, -30, -160)!;
   far.vz = near.vz = 0;
   assert.equal(c.nearest(0, 0), near);
-  c.step(p, FIXED_DT); assert.equal(c.shots, 1);
+  c.step(p, FIXED_DT); w.step(p, FIXED_DT); assert.equal(c.shots, 1);
   const bullet = c.bullets.items[0]; assert.ok(bullet.vx < 0); assert.ok(bullet.vz < 0);
   assert.ok(bullet.pz < p.progress); assert.equal(c.targetSlot, near.slot);
-  for (let i = 0; i < Math.ceil(SHOT_INTERVAL / FIXED_DT) - 1; i++) c.step(p, FIXED_DT);
-  assert.equal(c.shots, 1); c.step(p, FIXED_DT); assert.equal(c.shots, 2);
+  for (let i = 0; i < Math.ceil(0.38 / FIXED_DT) - 1; i++) { c.step(p, FIXED_DT); w.step(p, FIXED_DT); }
+  assert.equal(c.shots, 1); c.step(p, FIXED_DT); w.step(p, FIXED_DT); assert.equal(c.shots, 2);
   assert.ok(far.active);
-  c.clear(); const overtaker = c.spawn(2, 0, 160)!;
+  c.clear(); w.clear(); const overtaker = c.spawn(2, 0, 160)!;
   assert.equal(c.nearest(0, 0), overtaker);
 });
-test('the same scatter turret concentrates more damage at close range', () => {
+test('the same scatter gun concentrates more damage at close range', () => {
   const damageAt = (z: number) => {
     const c = new CombatSystem(silent), p = new DriftPhysics();
+    const w = new WeaponSystem([null, { weaponId: 'scatter', name: 's', level: 1, cooldown: 0, invested: 0, art: '' }, null, null, null], c);
     const rider = c.spawn(2, 0, z)!; rider.vz = 0;
-    for (let i = 0; i < 23; i++) c.step(p, FIXED_DT);
+    for (let i = 0; i < 23; i++) { c.step(p, FIXED_DT); w.step(p, FIXED_DT); }
     assert.equal(c.shots, 1); assert.equal(c.pelletsFired, 3);
     return 80 - rider.hp;
   };
@@ -50,9 +53,10 @@ test('the same scatter turret concentrates more damage at close range', () => {
 test('grouped pursuers can share a scatter volley while separated lanes require repositioning', () => {
   const hitCount = (spacing: number) => {
     const c = new CombatSystem(silent), p = new DriftPhysics();
+    const w = new WeaponSystem([null, { weaponId: 'scatter', name: 's', level: 1, cooldown: 0, invested: 0, art: '' }, null, null, null], c);
     const riders = [c.spawn(2, -spacing, -125)!, c.spawn(2, 0, -125)!, c.spawn(2, spacing, -125)!];
     for (const rider of riders) rider.vz = 0;
-    for (let i = 0; i < 23; i++) c.step(p, FIXED_DT);
+    for (let i = 0; i < 23; i++) { c.step(p, FIXED_DT); w.step(p, FIXED_DT); }
     assert.equal(c.shots, 1);
     return riders.filter(rider => rider.hp < 80).length;
   };
@@ -68,9 +72,10 @@ test('turret leads moving pursuers using an intercept solution', () => {
 });
 test('rear fire kills a chasing rider and returns its distant reward without reversing', () => {
   const c = new CombatSystem(silent), p = new DriftPhysics(); p.speed = 340; p.vy = -340;
+  const w = new WeaponSystem([null, { weaponId: 'scatter', name: 's', level: 1, cooldown: 0, invested: 0, art: '' }, null, null, null], c);
   const cone = c.spawn(0, 130, 1000)!;
   c.spawn(2, 50, -200);
-  for (let i = 0; i < 240 && c.kills === 0; i++) { p.previousProgress = p.progress; p.progress += 340 * FIXED_DT; c.step(p, FIXED_DT); }
+  for (let i = 0; i < 240 && c.kills === 0; i++) { p.previousProgress = p.progress; p.progress += 340 * FIXED_DT; c.step(p, FIXED_DT); w.step(p, FIXED_DT); }
   assert.equal(c.kills, 1); assert.ok(c.shots >= 5); assert.equal(c.health, 100);
   assert.ok(c.coins.items.some(coin => coin.active && coin.magnet));
   for (let i = 0; i < 120 && c.money === 0; i++) { p.progress += 340 * FIXED_DT; c.step(p, FIXED_DT); }
@@ -96,7 +101,7 @@ test('waves separately spawn forward hazards and rear pursuit packs', () => {
   assert.ok(obstacles.length > 0); assert.ok(obstacles.every(e => e.x >= -138 && e.x <= 138));
 });
 test('riders chase the car itself: braking slows them and they never overtake forward', () => {
-  const c = new CombatSystem(silent), p = new DriftPhysics(); c.starterEnabled = false;
+  const c = new CombatSystem(silent), p = new DriftPhysics();
   const rider = c.spawn(2, 0, p.progress - 200)!;
   for (let i = 0; i < 180; i++) { p.previousProgress = p.progress; p.progress += 340 * FIXED_DT; p.vy = -340; p.speed = 340; c.step(p, FIXED_DT); }
   assert.ok(rider.active); assert.ok(rider.z > p.progress - 160);
@@ -105,7 +110,7 @@ test('riders chase the car itself: braking slows them and they never overtake fo
   assert.ok(rider.z <= p.progress && p.progress - rider.z <= 160, 'rider stays on the tail, never ahead');
 });
 test('the pit call breaks off the chase: riders turn tail and ride off the screen', () => {
-  const c = new CombatSystem(silent), p = new DriftPhysics(); p.vy = -340; p.speed = 340; c.starterEnabled = false;
+  const c = new CombatSystem(silent), p = new DriftPhysics(); p.vy = -340; p.speed = 340;
   const rider = c.spawn(2, 0, p.progress - 80)!;
   c.entering = true;
   for (let i = 0; i < 60; i++) { p.previousProgress = p.progress; c.step(p, FIXED_DT); }
@@ -209,12 +214,14 @@ test('combat hot paths contain no object construction, literals or closure alloc
 
 test('ten-minute combat soak keeps slot identities and capacities fixed and reclaims all transient state', () => {
   const c = new CombatSystem(silent), p = new DriftPhysics();
+  const w = new WeaponSystem([null, { weaponId: 'scatter', name: 's', level: 1, cooldown: 0, invested: 0, art: '' }, null, null, null], c);
   const enemySlots = c.enemies.items.slice(), bulletSlots = c.bullets.items.slice(), coinSlots = c.coins.items.slice();
   for (let frame = 0; frame < 36000; frame++) {
     p.previousProgress = p.progress; p.progress += 340 * FIXED_DT; p.speed = 340; p.vy = -340;
     p.x = 225 + Math.sin(frame / 300) * 95;
     if (frame % 8 === 0) c.spawn(frame % 3, (frame % 5 - 2) * 50, p.progress + (frame % 3 === 2 ? -150 : 450));
     c.step(p, FIXED_DT);
+    w.step(p, FIXED_DT);
     assert.ok(Number.isFinite(c.money) && Number.isFinite(c.health));
   }
   assert.ok(c.kills > 1000);

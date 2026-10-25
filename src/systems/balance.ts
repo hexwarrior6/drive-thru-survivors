@@ -38,30 +38,32 @@ export function bossName(tier: number): string { return BOSS_NAMES[Math.max(0, M
 export function waveDuration(wave: number): number { return Math.min(50, 42 + (wave - 1) * 2); }
 
 /**
- * 敌人血量倍率：×(1 + 0.12·(波-1))。第 1 波 1.00 → 第 20 波 3.28，
- * 与玩家武器 5 级成长（单武器 DPS 约 ×3-4）保持同一量级。
+ * 敌人血量倍率：×(1 + 0.10·(波-1))。第 1 波 1.00 → 第 20 波 2.90。
+ * 武器系统重构后火力池更强调身份与取舍（数值节奏见 WEAPON_SYSTEM_REDESIGN §9.4），
+ * 斜率与玩家成长曲线同步放缓。
  */
-export function enemyHpScale(wave: number): number { return 1 + (wave - 1) * 0.12; }
+export function enemyHpScale(wave: number): number { return 1 + (wave - 1) * 0.10; }
 
-/** 碰撞基础伤害：路锥 5 / 购物车与骑手 9 / Boss 14，随波升到约 ×2.05（第 20 波）。 */
+/** 碰撞基础伤害：路锥 5 / 购物车与骑手 9 / Boss 14，随波升到约 ×1.86（第 20 波）。 */
 const CONTACT_BASE = [5, 9, 9, 14] as const;
 export function contactDamage(kind: number, wave: number): number {
-  return Math.round(CONTACT_BASE[kind] * (1 + (wave - 1) * 0.055));
+  return Math.round(CONTACT_BASE[kind] * (1 + (wave - 1) * 0.045));
 }
 
-/** 常规波前方路障间隔：1.29s → 0.55s（约第 14 波触底）。 */
-export function hazardInterval(wave: number): number { return Math.max(0.55, 1.35 - wave * 0.06); }
-/** 常规波追兵包间隔（开场 15 秒后）：4.22s → 3.0s。 */
-export function pursuitInterval(wave: number): number { return Math.max(3.0, 4.4 - wave * 0.18); }
-/** 追兵包规模：第 1-3 波 2 骑（教学期），第 4 波起 3 骑，8 波起 4 骑封顶。 */
-export function pursuitPack(wave: number): number { return Math.min(4, 2 + Math.floor(wave / 4)); }
+/** 常规波前方路障间隔：1.30s → 0.62s（约第 14 波触底）。武器系统重构后
+ *  原型期火力池没有旧版的全场清场工具，刷怪坡度随之放缓（§9.4 校准）。 */
+export function hazardInterval(wave: number): number { return Math.max(0.62, 1.35 - wave * 0.055); }
+/** 常规波追兵包间隔（开场 15 秒后）：4.45s → 3.4s。 */
+export function pursuitInterval(wave: number): number { return Math.max(3.4, 4.6 - wave * 0.15); }
+/** 追兵包规模：第 1-4 波 2 骑（教学期），第 5 波起 3 骑，10 波起 4 骑封顶。 */
+export function pursuitPack(wave: number): number { return Math.min(4, 2 + Math.floor(wave / 5)); }
 
 /** Boss 档位参数：血量 1050 → 6090，行为逐档更凶。 */
 export function bossHpScale(tier: number): number { return [1, 2.2, 3.6, 5.8][Math.max(0, Math.min(3, tier - 1))]; }
 /** Boss 波中路障间隔：2.1s → 1.2s。 */
 export function bossHazardInterval(tier: number): number { return Math.max(0.9, 2.1 - (tier - 1) * 0.3); }
 /** Boss 波中追兵包间隔：8.5s → 4.0s。 */
-export function bossPursuitInterval(tier: number): number { return Math.max(3.4, 8.5 - (tier - 1) * 1.5); }
+export function bossPursuitInterval(tier: number): number { return Math.max(3.6, 8.5 - (tier - 1) * 1.5); }
 /** Boss 波中追兵包规模：2 → 5 骑。 */
 export function bossPursuitPack(tier: number): number { return 1 + tier; }
 /** 侧撞预警时长：0.9s → 0.6s，档位越高反应窗口越短。 */
@@ -98,3 +100,18 @@ export const UPGRADE_COST = [1, 1.8, 2.8, 4.2, 6] as const;
 export function upgradeCostMultiplier(level: number): number {
   return UPGRADE_COST[Math.max(0, Math.min(UPGRADE_COST.length - 1, level))];
 }
+
+/** 酱料奖励波（§7.1）：第 2 波结束首次三选一，之后 5/10/15 波 Boss 后各一次；最多 4 包。 */
+export const SAUCE_REWARD_WAVES = [2, 5, 10, 15] as const;
+
+/** 车辆模块定价（§8/§9.1）：独立游戏改装服务，单独列示，不动真实餐品报价。 */
+export const MODULE_PRICES: Record<string, number> = { 'M-drift': 26, 'M-bumper': 30, 'M-pump': 22 };
+
+/** 改装服务升阶基价（§6 兜底）：无对应餐品材料时，按当前等级 × 升阶倍率计价。 */
+export const SERVICE_UPGRADE_BASE = 14;
+
+/** 替换抵扣（§9.2）：按旧武器累计实际金币投入的 50% 抵扣新装，不可套现。 */
+export const REPLACE_CREDIT = 0.5;
+
+/** 免费基础前炮安装（§4.2）：仅第一站提供，明确标为游戏服务。 */
+export const FREE_FRONT_WAVE = 1;

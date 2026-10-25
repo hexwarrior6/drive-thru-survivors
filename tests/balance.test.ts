@@ -28,11 +28,11 @@ test('difficulty curves rise monotonically and stay within design bounds', () =>
     assert.ok(pursuitInterval(w) <= pursuitInterval(w - 1), 'pursuit cadence must keep tightening');
     assert.ok(pursuitPack(w) >= pursuitPack(w - 1), 'pursuit packs never shrink');
   }
-  assert.ok(Math.abs(enemyHpScale(20) - 3.28) < 1e-9);
-  assert.deepEqual([1, 9, 20].map(w => contactDamage(0, w)), [5, 7, 10]);
-  assert.deepEqual([1, 9, 20].map(w => contactDamage(3, w)), [14, 20, 29]);
-  assert.equal(hazardInterval(1), 1.29); assert.equal(hazardInterval(20), 0.55);
-  assert.equal(pursuitPack(1), 2); assert.equal(pursuitPack(4), 3); assert.equal(pursuitPack(8), 4); assert.equal(pursuitPack(20), 4);
+  assert.ok(Math.abs(enemyHpScale(20) - 2.90) < 1e-9);
+  assert.deepEqual([1, 9, 20].map(w => contactDamage(0, w)), [5, 7, 9]);
+  assert.deepEqual([1, 9, 20].map(w => contactDamage(3, w)), [14, 19, 26]);
+  assert.ok(Math.abs(hazardInterval(1) - 1.295) < 1e-9); assert.equal(hazardInterval(20), 0.62);
+  assert.equal(pursuitPack(1), 2); assert.equal(pursuitPack(4), 2); assert.equal(pursuitPack(5), 3); assert.equal(pursuitPack(10), 4); assert.equal(pursuitPack(20), 4);
 });
 
 test('boss tiers escalate on every axis the player feels', () => {

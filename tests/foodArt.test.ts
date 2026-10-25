@@ -1,12 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FOOD_VARIANTS, FOOD_TEXTURE_KEYS, BULLET_SCALE, variantFor, variantKeyFor, hashName, type FoodVariant } from '../src/data/foodArt';
-import type { WeaponType } from '../src/combat/weaponMapper';
+import { FOOD_VARIANTS, FOOD_TEXTURE_KEYS, BULLET_SCALE, variantFor, variantKeyFor, hashName, type ArtGroup, type FoodVariant } from '../src/data/foodArt';
 
-const TYPES: WeaponType[] = ['starter', 'burger', 'fries', 'cola', 'ice', 'mine', 'flame', 'coffee', 'desperate', 'heal', 'shield', 'missile', 'wingman'];
+const GROUPS: ArtGroup[] = ['starter', 'burger', 'fries', 'cola', 'ice', 'mine', 'flame', 'coffee', 'heal', 'shield', 'missile', 'wingman'];
 
-test('every weapon family ships at least one art variant with unique keys', () => {
-  for (const type of TYPES) {
+test('every art group ships at least one variant with unique keys', () => {
+  for (const type of GROUPS) {
     const list = FOOD_VARIANTS[type];
     assert.ok(Array.isArray(list) && list.length >= 1, `${type} needs variants`);
     for (const v of list) assert.ok(v.key.startsWith('food-'), `${v.key} should use the food- prefix`);

@@ -11,7 +11,9 @@
  * node 测试可直接导入做映射断言。
  */
 import { paintFood } from './foodIllustrations';
-import type { WeaponType } from '../combat/weaponMapper';
+
+/** 美术分组：与战斗层解耦——分组只决定用哪一套餐品贴图，不决定机制。 */
+export type ArtGroup = 'starter' | 'burger' | 'fries' | 'cola' | 'ice' | 'flame' | 'mine' | 'coffee' | 'heal' | 'shield' | 'missile' | 'wingman';
 
 export interface FoodVariant {
   /** 烘焙贴图 key（'food-' 前缀）。 */
@@ -35,7 +37,7 @@ export interface FoodVariant {
  */
 export const FOOD_DATA_URLS: Record<string, string> = {};
 
-export const FOOD_VARIANTS: Record<WeaponType, FoodVariant[]> = {
+export const FOOD_VARIANTS: Record<ArtGroup, FoodVariant[]> = {
   starter: [{
     key: 'food-starter', label: '后置散弹', w: 22, h: 48, draw(ctx) { paintFood(ctx, 'food-starter'); },
   }],
@@ -110,9 +112,6 @@ export const FOOD_VARIANTS: Record<WeaponType, FoodVariant[]> = {
       key: 'food-coffee-hot', label: '热咖啡', tint: 0x8a5a3b, w: 44, h: 62, draw(ctx) { paintFood(ctx, 'food-coffee-hot'); },
     },
   ],
-  desperate: [{
-    key: 'food-desperate-espresso', label: '双份浓缩', tint: 0x3a2e28, w: 36, h: 42, draw(ctx) { paintFood(ctx, 'food-desperate-espresso'); },
-  }],
   heal: [
     {
       key: 'food-heal-mcflurry', label: '麦旋风', match: /麦旋风|旋风/, tint: 0xbfe0ea, w: 48, h: 62, draw(ctx) { paintFood(ctx, 'food-heal-mcflurry'); },
@@ -151,15 +150,15 @@ export function hashName(s: string): number {
 }
 
 /** 解析一个商品的美术变体：关键词优先，未命中按名称哈希稳定落位。 */
-export function variantFor(type: WeaponType, name: string): FoodVariant {
-  const list = FOOD_VARIANTS[type];
+export function variantFor(group: ArtGroup, name: string): FoodVariant {
+  const list = FOOD_VARIANTS[group];
   const trimmed = name.trim();
   for (const v of list) if (v.match && v.match.test(trimmed)) return v;
-  return list[hashName(type + ':' + trimmed) % list.length];
+  return list[hashName(group + ':' + trimmed) % list.length];
 }
 
-export function variantKeyFor(type: WeaponType, name: string): string {
-  return variantFor(type, name).key;
+export function variantKeyFor(group: ArtGroup, name: string): string {
+  return variantFor(group, name).key;
 }
 
 const BY_KEY = new Map<string, FoodVariant>();

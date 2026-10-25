@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { createPitTextures } from '../data/createPitTextures';
 import { createFoodTextures } from '../data/createFoodTextures';
 import { createWorldTextures } from '../data/createWorldTextures';
+import { bakeSauceArt } from '../combat/sauces';
 import { CARS } from '../data/cars';
 import { C } from '../data/colors';
 
@@ -105,6 +106,7 @@ export class BootScene extends Phaser.Scene {
     createPitTextures(this);
     createFoodTextures(this);
     createWorldTextures(this);
+    bakeSauceArt();
     this.scene.start('Title');
   }
 }

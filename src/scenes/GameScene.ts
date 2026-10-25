@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { ShopSystem } from '../systems/ShopSystem';
 import { ShopView } from '../ui/ShopView';
+import { SauceView } from '../ui/SauceView';
+import { sauceByKey } from '../combat/sauces';
 import { WeaponSystem } from '../combat/WeaponSystem';
 import { WeaponView } from '../combat/WeaponView';
 import { demoSnapshot } from '../data/snapshot';
@@ -13,10 +15,10 @@ import { PIT_CAMERA_SIDE, PIT_PLAYER_X } from '../systems/PitStopLayout';
 import { BASE_SPEED, FIXED_DT, ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
 import { C, TIER_COLORS, TIER_SMOKE } from '../data/colors';
 import { resolveTrackPlan } from '../data/cityProfiles';
-import { variantKeyFor } from '../data/foodArt';
 import { carById, type CarId } from '../data/cars';
 import { themeFor } from '../systems/Theme';
-import { bossBurstCount, bossReward, bossTierOf, enemyHpScale } from '../systems/balance';
+import { bossBurstCount, bossReward, bossTierOf, enemyHpScale, SAUCE_REWARD_WAVES } from '../systems/balance';
+import { resolveArt } from '../combat/foodIdentity';
 import { clearRun, saveRun, type RunSave } from '../systems/SaveSystem';
 import { Player } from '../entities/Player';
 import { ParticleManager } from '../effects/ParticleManager';
@@ -34,6 +36,9 @@ export class GameScene extends Phaser.Scene {
   shop!: ShopSystem;
   weapons!: WeaponSystem;
   private shopView!: ShopView;
+  private sauceView!: SauceView;
+  /** Boss waves whose sauce reward was already picked or skipped. */
+  private sauceClaimedWaves: number[] = [];
   private weaponView!: WeaponView;
   player!: Player;
   audio!: AudioSynth;
@@ -73,6 +78,8 @@ export class GameScene extends Phaser.Scene {
   private carId: CarId = 'flash';
   private theme = themeFor('');
   private abort!: AbortController;
+  /** 本局独立种子：酱料候选与门店洗牌外的规则随机都从它派生（§7.1）。 */
+  private runSeed = 0;
   private reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   private soundButton = document.getElementById('sound')!;
   get routeCurvature(): number { return this.track?.route.curvatureAt(this.player?.physics.progress ?? 0) ?? 0; }
@@ -83,6 +90,8 @@ export class GameScene extends Phaser.Scene {
     this.countdownShown = -1; this.bossCelebrated = this.finished = false;
     this.paused = false;
     this.stressMeter = new StressMeter(); this.stressSpawned = this.stressFramesShown = 0;
+    this.sauceClaimedWaves = [];
+    this.runSeed = (Math.random() * 0x7fffffff) | 0;
     this.stressReadout.textContent = 'STRESS · 预热中';
     document.getElementById('pause')!.setAttribute('aria-label', '暂停游戏');
     document.getElementById('pause')!.setAttribute('aria-pressed', 'false');
@@ -108,6 +117,7 @@ export class GameScene extends Phaser.Scene {
     this.weapons = new WeaponSystem(this.shop.slots, this.combat);
     this.weaponView = new WeaponView(this, this.weapons, this.track.projection);
     this.shopView = new ShopView(this.shop, this.combat, this.registry.get('snapshotReason') ?? '本地示例', () => this.hud.updateCombat(this.combat, this.wave));
+    this.sauceView = new SauceView(this.combat, () => this.hud.updateCombat(this.combat, this.wave));
     this.pitView = new PitStopView(this, this.track.projection);
     this.theme = themeFor(snapshot.campaign);
     // Kart passives and campaign theme apply for the whole run.
@@ -170,7 +180,9 @@ export class GameScene extends Phaser.Scene {
     document.getElementById('hud')!.classList.remove('hidden');
     document.getElementById('drive-ui')!.classList.remove('hidden');
     document.getElementById('pause-panel')!.classList.add('hidden');
+    document.getElementById('sauce-reward')!.classList.add('hidden');
     this.pitPanel.classList.add('hidden');
+    this.pitPanel.classList.remove('rewarding');
     updateCarY(this.scale.height);
     if (resume) this.restore(resume);
     else {
@@ -190,28 +202,27 @@ export class GameScene extends Phaser.Scene {
     this.player.physics.carSpeedBonus = carDef.speedBonus;
     this.player.physics.carNitroRegen = carDef.nitroRegen;
     this.shop.restore(run.route, run.bagIds);
-    // 旧档没有 variant 字段；解析器是纯函数，按名字重算必然与购买时一致。
     for (let i = 0; i < 5; i++) this.shop.slots[i] = run.slots[i]
-      ? { ...run.slots[i]!, cooldown: 0, variant: variantKeyFor(run.slots[i]!.type, run.slots[i]!.name) }
+      ? { ...run.slots[i]!, cooldown: 0, art: resolveArt(run.slots[i]!.weaponId, run.slots[i]!.name) }
       : null;
     this.combat.health = run.health; this.combat.money = run.money;
     this.combat.kills = run.kills; this.combat.maxCombo = run.maxCombo;
+    // Sauces and claimed boss rewards ride along; unknown keys from older saves drop out.
+    for (const key of run.sauces ?? []) { const def = sauceByKey(key); if (def) this.combat.equipSauce(def.key); }
+    this.sauceClaimedWaves = [...(run.sauceWaves ?? [])];
     this.player.physics.distance = run.distance;
     this.player.physics.nitro = run.nitro;
     this.wave.number = run.wave; this.wave.duration = run.duration;
     this.wave.fast = this.fast;
     this.combat.wave = run.wave;
     this.combat.hpScale = enemyHpScale(run.wave);
+    this.runSeed = run.runSeed ?? (Math.random() * 0x7fffffff) | 0;
     if (run.atPit) {
       this.wave.state = 'pit';
       this.wave.pitProgress = this.player.physics.progress;
       this.wave.cameraSide = PIT_CAMERA_SIDE;
       this.player.physics.x = this.player.physics.previousX = PIT_PLAYER_X;
-      this.shopView.open(this.wave.number);
-      this.pitPanel.classList.remove('hidden');
-      document.body.classList.add('is-pit');
-      document.getElementById('drive-ui')!.classList.add('hidden');
-      this.audio.setPaused(true);
+      this.openPit();
     } else {
       this.wave.state = 'combat';
       this.wave.remaining = run.duration;
@@ -225,17 +236,38 @@ export class GameScene extends Phaser.Scene {
     stop.textContent = `下一站 · ${name.replace(/得来速餐厅$/, '')}`;
     stop.title = name;
   }
+  /** Open the pit panel; a boss-wave stop claims its sauce reward before the shop. */
+  private openPit(): void {
+    this.shopView.open(this.wave.number);
+    this.pitPanel.classList.remove('hidden');
+    document.body.classList.add('is-pit');
+    document.getElementById('drive-ui')!.classList.add('hidden');
+    this.inputControls.clear();
+    this.audio.setPaused(true);
+    this.sauceView.renderTray();
+    // 调味奖励（§7.1）：第 2 波结束首抽，5/10/15 波 Boss 后各一次；最多 4 包。
+    const rewardDue = (SAUCE_REWARD_WAVES as readonly number[]).includes(this.wave.number)
+      && !this.sauceClaimedWaves.includes(this.wave.number)
+      && this.combat.ownedSauces().length < 4;
+    if (rewardDue) {
+      this.sauceView.showReward(this.wave.number, this.runSeed, this.weapons.wallCapable(), () => {
+        this.sauceClaimedWaves.push(this.wave.number);
+        this.persistRun(true);
+      });
+    }
+  }
   /** Persist the run at safe cut points: wave starts, pit stops and page exits. */
   private persistRun(atPit: boolean): void {
     if (this.finished || this.wave.state === 'disabled') { clearRun(); return; }
     const run: RunSave = {
-      v: 5, car: this.carId, city: this.shop.snapshot.city,
+      v: 6, runSeed: this.runSeed, car: this.carId, city: this.shop.snapshot.city,
       wave: this.wave.number, duration: this.wave.duration,
       atPit: atPit && this.wave.state === 'pit',
       health: this.combat.health, money: this.combat.money, kills: this.combat.kills,
       maxCombo: this.combat.maxCombo, distance: this.player.physics.distance,
       nitro: Math.max(atPit ? 100 : 40, this.player.physics.nitro),
-      slots: this.shop.slots.map(w => w ? { name: w.name, type: w.type, level: w.level } : null),
+      slots: this.shop.slots.map(w => w ? { weaponId: w.weaponId, name: w.name, level: w.level, branch: w.branch, invested: w.invested } : null),
+      sauces: this.combat.ownedSauces(), sauceWaves: [...this.sauceClaimedWaves],
       route: this.shop.route, bagIds: this.shop.bag.map(s => s.id),
       snapshot: this.shop.snapshot, savedAt: new Date().toISOString(),
     };
@@ -272,7 +304,7 @@ export class GameScene extends Phaser.Scene {
       victory, car: this.carId, wave: this.wave.number,
       distance: this.player.physics.distance, kills: this.combat.kills,
       maxCombo: this.combat.maxCombo, money: this.combat.money,
-      slots: this.shop.slots.map(w => w ? { name: w.name, type: w.type, level: w.level } : null),
+      slots: this.shop.slots.map(w => w ? { weaponId: w.weaponId, name: w.name, level: w.level, branch: w.branch, invested: w.invested } : null),
       campaign: this.shop.snapshot.campaign, theme: this.theme.name,
     });
     this.scene.start('Result');
@@ -342,7 +374,7 @@ export class GameScene extends Phaser.Scene {
       if (this.wave.state === 'entering') { this.weapons.clear(); this.persistRun(true); }
       if (before === 'countdown' && this.wave.state === 'combat') this.persistRun(false);
       if (before === 'exiting' && this.wave.state === 'combat') this.bossCelebrated = false;
-      if (this.wave.state === 'pit') { this.shopView.open(this.wave.number); this.pitPanel.classList.remove('hidden'); document.body.classList.add('is-pit'); document.getElementById('drive-ui')!.classList.add('hidden'); this.inputControls.clear(); this.audio.setPaused(true); }
+      if (this.wave.state === 'pit') this.openPit();
       if (this.wave.state === 'victory') this.victoryTime = 0;
       this.hud.updateCombat(this.combat, this.wave);
     }
@@ -428,7 +460,7 @@ export class GameScene extends Phaser.Scene {
     this.player.render(alpha, this.reducedMotion ? 0 : this.kick, this.track.projection);
     this.combatView.draw(alpha);
     this.weaponView.draw(this.player.physics, this.elapsed);
-    this.combatView.drawTurret(this.player.physics, alpha, this.reducedMotion ? 0 : this.kick, this.shop.slots[0]?.type ?? null, this.shop.slots[1]?.type ?? 'starter');
+    this.combatView.drawTurret(this.player.physics, alpha, this.reducedMotion ? 0 : this.kick, this.shop.slots[0]?.weaponId ?? null, this.shop.slots[1]?.weaponId ?? null);
     this.particles.draw();
     this.skidMarks.draw(this.skid);
     this.player.sprite.setAlpha(this.combat.impact ? 0.55 : 1);
@@ -468,6 +500,7 @@ export class GameScene extends Phaser.Scene {
       const b = this.combat.bullets.acquire(); if (!b) break;
       b.x = b.px = (b.slot % 8 - 3.5) * 34; b.z = b.pz = p.progress + 80 + (b.slot % 12) * 33;
       b.vx = 0; b.vz = 850 + p.speed * 0.3; b.life = 0.8; b.damage = 12;
+      b.tex = ''; b.traits = 0; b.meta = 0; b.leg = 0; b.hits = 0; b.age = 0;
     }
     for (let i = 0; i < 8; i++) this.particles.emit((Math.random() - 0.5) * 280, p.progress + Math.random() * 600, C.gold, 40, -30, 0.6, 5);
   }
