@@ -70,10 +70,16 @@
 <button id="codex-open" class="codex-open hidden">武器图鉴 · 32 件 ↗</button>
 <button id="resume-run" class="resume-button hidden">继续游戏 ↗</button>
 <div id="codex-panel" class="pause-panel codex-panel hidden" role="dialog" aria-modal="true" aria-label="武器图鉴">
-<span class="title-tag">WEAPON CODEX · 武器图鉴</span><h2>32 件餐品专属武器</h2>
-<p class="codex-intro">具体餐品决定独立武器，食品品类决定家族；每件都有招牌机制、弱点与互斥分支。商店卡片、这里与实际开火读取同一份定义。</p>
+<div class="codex-head"><span class="title-tag">WEAPON CODEX · 图鉴</span><button id="codex-close" class="codex-x" aria-label="收起图鉴">✕</button></div>
+<div id="codex-filters" class="codex-filters" role="group" aria-label="按家族筛选"></div>
 <div id="codex-list" class="codex-list"></div>
-<button id="codex-close" class="reset-button">收起图鉴</button>
+</div>
+<div id="codex-detail" class="codex-detail hidden" role="dialog" aria-modal="true" aria-label="武器详情">
+<div class="codex-detail-card">
+<button id="codex-detail-close" class="codex-x" aria-label="关闭详情">✕</button>
+<div id="codex-detail-body"></div>
+<div class="codex-nav"><button id="codex-prev">‹ 上一件</button><span id="codex-pos"></span><button id="codex-next">下一件 ›</button></div>
+</div>
 </div>
 <p id="title-records" class="title-records" hidden></p><p id="destination-status" role="status">选个城市，沿途随机停靠真实得来速。</p></div>
 <div id="pause-panel" class="pause-panel hidden"><span class="title-tag">TAKE A PIT STOP</span><h2>歇一脚，再出发。</h2>

@@ -10,7 +10,6 @@ import { TrackGenerator } from '../systems/TrackGenerator';
 
 export class TitleScene extends Phaser.Scene {
   private track!: TrackGenerator;
-  private codex!: CodexView;
   private car!: Player;
   private abort?: AbortController;
   constructor() { super('Title'); }
@@ -24,8 +23,7 @@ export class TitleScene extends Phaser.Scene {
     document.getElementById('hud')!.classList.add('hidden');
     this.abort = new AbortController();
     const options = { signal: this.abort.signal };
-    this.codex = new CodexView();
-    this.codex.render();
+    new CodexView(); // 自装配：绑定标题屏的图鉴入口与弹层
     const start = document.getElementById('start') as HTMLButtonElement;
     const city = document.getElementById('destination-city') as HTMLInputElement;
     const dice = document.getElementById('random-city') as HTMLButtonElement;
