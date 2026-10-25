@@ -60,6 +60,10 @@ export class ShopView {
       cardMain.append(node('h3', p.name));
       const title = node('b', ''); title.innerHTML = `<i class="mount-badge">${generic ? '通用改装' : identity.label}</i>${def.name} · ${MOUNT_NAMES[def.mount]}${next > 1 ? ` · Lv.${next}` : ''}`;
       cardMain.append(title);
+      // 基础数值直接上卡面（首要一行）；完整规格与描述在详情弹层。
+      const stats = node('div', '', 'food-card-stats');
+      stats.innerHTML = weaponStats(wid, next, same?.branch).slice(0, 1).map(st => `<span class="stat">${statIcon(st.icon)}${st.text}</span>`).join('');
+      cardMain.append(stats);
       cardRow.append(cardMain);
       const detailButton = node('button', '详情', 'card-detail-button') as HTMLButtonElement;
       detailButton.type = 'button';
@@ -95,40 +99,44 @@ export class ShopView {
     document.getElementById('menu-summary')!.textContent = `查看其他 ${Math.max(0, s.offers.length - 3)} 款餐品 · 共 ${s.offers.length} 款已核价`;
     // ---- 游戏改装服务（§9.1）：免费前炮、车辆模块、无材料时的升阶兜底。 ----
     const services = document.getElementById('shop-services')!; services.replaceChildren();
-    services.append(node('span', '游戏改装服务 · 与门店餐品分开结算', 'service-heading'));
+    services.append(node('span', '改装服务', 'service-heading'));
+    const grid = node('div', '', 'service-grid');
+    // 免费前炮：第一站才有，作为网格首位。
     if (s.freeFrontAvailable()) {
-      const card = node('div', '', 'service-card');
-      card.append(node('b', '基础前炮安装 · 免费'));
-      card.append(node('p', '第一站统一补全前向火力；这是游戏服务，不是门店赠品，也不影响餐品标价。', 'service-note'));
+      const cell = node('div', '', 'service-cell') as HTMLDivElement;
+      cell.title = '第一站统一补全前向火力；游戏服务，不影响餐品标价。';
+      cell.append(node('b', '基础前炮'));
       const button = node('button', '免费安装') as HTMLButtonElement;
       button.addEventListener('click', () => { s.installFrontService(); this.render(); this.changed(); });
-      card.append(button); services.append(card);
+      cell.append(button); grid.append(cell);
     }
     for (const mod of MODULES) {
       const installed = s.moduleInstalled(mod.id);
-      const card = node('div', '', 'service-card');
-      card.append(node('b', `${mod.name} · 车辆模块`));
-      card.append(node('p', mod.note, 'service-note'));
+      const cell = node('div', '', 'service-cell') as HTMLDivElement;
+      cell.title = mod.note;
+      cell.append(node('b', mod.name));
       const button = node('button', '') as HTMLButtonElement;
       if (installed) { button.textContent = '已安装'; button.disabled = true; }
       else {
         const cost = s.modulePrice(mod.id);
-        button.innerHTML = `安装 · ${statIcon('coin', 11)}${cost}`;
+        button.innerHTML = `${statIcon('coin', 11)}${cost}`;
         button.disabled = w.money < cost;
         button.addEventListener('click', () => { s.buyModule(mod.id, w); this.render(); this.changed(); });
       }
-      card.append(button); services.append(card);
+      cell.append(button); grid.append(cell);
     }
+    // 无材料升阶兜底：同样以格子呈现（有分支选择时展开分支按钮行）。
     for (let i = 0; i < 2; i++) {
       const weapon = s.slots[i];
       if (!weapon || weapon.level >= MAX_WEAPON_LEVEL || !s.lacksMaterial(weapon)) continue;
       const def = weaponById(weapon.weaponId);
       if (def.family === '服务') continue;
-      const card = node('div', '', 'service-card');
-      card.append(node('b', `改装服务 · ${def.name} Lv.${weapon.level}→${weapon.level + 1}`));
-      card.append(node('p', '本店没有能喂养这件武器的餐品；用改装服务直接升阶，价格单独列示。', 'service-note'));
       const cost = s.upgradeServiceCost(i);
+      const cell = node('div', '', 'service-cell') as HTMLDivElement;
+      cell.title = '本店没有能喂养这件武器的餐品；用改装服务直接升阶。';
+      cell.append(node('b', `${def.name} Lv.${weapon.level + 1}`));
       if (weapon.level + 1 === 3 && !weapon.branch && def.branches) {
+        cell.classList.add('span-all');
         const branches = node('div', '', 'branch-buttons');
         for (const b of def.branches) {
           const button = node('button', '') as HTMLButtonElement;
@@ -138,17 +146,18 @@ export class ShopView {
           button.addEventListener('click', () => { s.upgradeService(i, w, b.id as BranchId); this.render(); this.changed(); });
           branches.append(button);
         }
-        card.append(branches);
+        cell.append(branches);
       } else {
         const button = node('button', '') as HTMLButtonElement;
-        button.innerHTML = `升阶 · ${statIcon('coin', 11)}${cost}`;
+        button.innerHTML = `升阶 ${statIcon('coin', 11)}${cost}`;
         button.disabled = w.money < cost;
         button.addEventListener('click', () => { s.upgradeService(i, w); this.render(); this.changed(); });
-        card.append(button);
+        cell.append(button);
       }
-      services.append(card);
+      grid.append(cell);
     }
-    services.classList.toggle('hidden', services.children.length <= 1);
+    services.append(grid);
+    services.classList.toggle('hidden', grid.children.length === 0);
     // ---- 槽位：1 前 + 1 后 + 3 模块；替换时只允许选目标挂载。 ----
     const slots = document.getElementById('weapon-slots')!; slots.replaceChildren();
     const pendingMounts = s.pending >= 0 && s.offers[s.pending] ? s.mountsFor(s.weaponFor(s.offers[s.pending])) : [];
