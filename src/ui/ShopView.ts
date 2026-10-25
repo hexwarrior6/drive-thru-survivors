@@ -58,7 +58,8 @@ export class ShopView {
       const art = node('div', '', 'food-art'); art.innerHTML = productArt(identity.artGroup, p.name); cardRow.append(art);
       const cardMain = node('div', '', 'food-card-main');
       cardMain.append(node('h3', p.name));
-      const title = node('b', ''); title.innerHTML = `<i class="mount-badge">${generic ? '通用改装' : identity.label}</i>${def.name} · ${MOUNT_NAMES[def.mount]}${next > 1 ? ` · Lv.${next}` : ''}`;
+      // 卡面只留 武器名 · 挂载；专属身份在详情弹层交代（窄卡上是冗余噪声）。
+      const title = node('b', ''); title.innerHTML = `${generic ? '通用改装' : ''}${def.name} · ${MOUNT_NAMES[def.mount]}${next > 1 ? ` · Lv.${next}` : ''}`;
       cardMain.append(title);
       // 基础数值直接上卡面（首要一行）；完整规格与描述在详情弹层。
       const stats = node('div', '', 'food-card-stats');
@@ -70,18 +71,20 @@ export class ShopView {
       detailButton.addEventListener('click', () => { this.detail = { wid, productName: p.name, identityLabel: identity.label, next, branch: same?.branch }; this.renderDetail(); });
       cardRow.append(detailButton);
       card.append(cardRow);
+      // 统一卡片脚部：详情 chip + 购买钮同排同高；Lv.3 待选时购买位显示分支按钮行。
+      const foot = node('div', '', 'food-card-foot');
+      foot.append(detailButton);
       if (s.needsBranch(p) && !s.sold.has(i)) {
         const branches = node('div', '', 'branch-buttons');
         for (const b of def.branches ?? []) {
           const button = node('button', '') as HTMLButtonElement;
           button.type = 'button';
-          button.innerHTML = `<b>${b.name}</b><small>${b.note}</small>`;
+          button.innerHTML = `<b>${b.name}</b>`;
           button.disabled = w.money < cost;
           button.addEventListener('click', () => { s.buy(i, w, -1, b.id as BranchId); this.render(); this.changed(); });
           branches.append(button);
         }
-        branches.append(node('small', 'Lv.3 二选一 · 进站选择，暂不可更改', 'branch-hint'));
-        card.append(branches);
+        foot.append(branches);
       } else {
         const button = node('button', '') as HTMLButtonElement;
         const discounted = s.discount < 1 && !s.sold.has(i) && level < MAX_WEAPON_LEVEL;
@@ -89,8 +92,10 @@ export class ShopView {
         else if (level >= MAX_WEAPON_LEVEL) button.textContent = '已满阶';
         else button.innerHTML = `<span>${same ? `升阶 Lv.${level + 1}` : '购买'}</span><span class="price">${discounted ? `<s>${s.listPrice(p, level)}</s>` : ''}${statIcon('coin', 11)}${cost}</span>`;
         button.disabled = s.sold.has(i) || level >= MAX_WEAPON_LEVEL || w.money < cost;
-        button.addEventListener('click', () => { s.buy(i, w); this.render(); this.changed(); }); card.append(button);
+        button.addEventListener('click', () => { s.buy(i, w); this.render(); this.changed(); });
+        foot.append(button);
       }
+      card.append(foot);
       if (i < 3) cards.append(card); else menu.append(card);
     });
     const details = document.getElementById('store-menu') as HTMLDetailsElement;
@@ -182,7 +187,7 @@ export class ShopView {
         } else if (weapon) {
           b.innerHTML = `<span class="slot-icon">${slotArt('')}</span><span class="slot-name">${moduleById(weapon.weaponId)?.name ?? weapon.name}</span><span class="slot-level">已装</span>`;
         } else {
-          b.innerHTML = `<span class="slot-icon slot-icon-empty"></span><span class="slot-empty">${group.label} · 空</span>`;
+          b.innerHTML = `<span class="slot-icon slot-icon-empty"></span><span class="slot-empty">空</span>`;
         }
         b.disabled = pendingMounts.length === 0 || !eligible;
         b.addEventListener('click', () => { s.selected = i; this.render(); }); slots.append(b);
