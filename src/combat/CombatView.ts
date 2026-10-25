@@ -4,6 +4,7 @@ import type { CombatSystem } from './CombatSystem';
 import type { TrackProjection } from '../systems/TrackProjection';
 import type { Theme } from '../systems/Theme';
 import type { WeaponType } from './weaponMapper';
+import { BULLET_SCALE } from '../data/foodArt';
 const ENEMY_TEXTURES = ['cone', 'cart', 'rider', 'truck'];
 const HIT_TEXTURES = ['cone-hit', 'cart-hit', 'rider-hit', 'truck-hit'];
 const BULLET_TEXTURES = ['bullet', 'burger-bullet', 'fries-bullet', 'toy-bullet', 'missile-bullet'];
@@ -60,11 +61,17 @@ export class CombatView {
     for (let i = 0; i < this.bullets.length; i++) {
       const b = m.bullets.items[i], image = this.bullets[i];
       if (!b.active) { image.setVisible(false); continue; }
-      const texture = BULLET_TEXTURES[b.kind] ?? 'bullet';
+      // Variant art (per product name) wins; kind fallback covers the built-in
+      // scatter gun and escort toys. Variant textures are drawn ~2× for shop
+      // clarity, so scale them back to the legacy bullet size class.
+      const texture = b.tex || BULLET_TEXTURES[b.kind] || 'bullet';
       if (image.texture.key !== texture) image.setTexture(texture);
-      this.place(image, b.px + (b.x - b.px) * alpha, b.pz + (b.z - b.pz) * alpha, 1);
+      this.place(image, b.px + (b.x - b.px) * alpha, b.pz + (b.z - b.pz) * alpha, BULLET_SCALE[b.tex] ?? 1);
       if (image.visible) this.visibleBullets++;
-      image.setTint(b.kind === 1 ? (b.level >= 3 ? 0xffcf52 : 0xad713a) : b.kind === 2 ? 0xffcf52 : b.kind === 4 ? 0xff9d7a : 0xffffff);
+      // Variant art carries its own colors; the golden tint remains the Lv3+
+      // "charged" signal on top of it. Kind fallbacks keep the legacy tints.
+      const charged = (b.kind === 1 || b.kind === 2) && b.level >= 3;
+      image.setTint(b.tex ? (charged ? 0xffcf52 : 0xffffff) : b.kind === 1 ? (b.level >= 3 ? 0xffcf52 : 0xad713a) : b.kind === 2 ? 0xffcf52 : b.kind === 4 ? 0xff9d7a : 0xffffff);
       if (b.kind === 1 && b.level >= 3) image.setScale(image.scaleX * (b.level >= 5 ? 1.8 : 1.5), image.scaleY * (b.level >= 5 ? 1.8 : 1.5));
       image.setRotation(Math.atan2(b.vx, b.vz));
     }

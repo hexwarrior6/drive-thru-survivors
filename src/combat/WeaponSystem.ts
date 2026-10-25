@@ -4,7 +4,7 @@ import type { CombatSystem, Enemy } from './CombatSystem';
 import type { DriftPhysics } from '../systems/DriftPhysics';
 import type { EquippedWeapon } from '../systems/ShopSystem';
 import { ObjectPool } from '../utils/ObjectPool';
-interface Mine { active: boolean; slot: number; x: number; z: number; life: number; level: number; exploded: boolean }
+interface Mine { active: boolean; slot: number; x: number; z: number; life: number; level: number; exploded: boolean; variant: string }
 /** Escort toys hold formation at these offsets; the third trails center-behind. */
 const TOY_SIDE = [-54, 54, 0];
 const TOY_Z = [8, 8, -18];
@@ -13,7 +13,7 @@ const HEAL_INTERVAL = [10, 8, 6, 5, 4];
 const HEAL_AMOUNT = [2, 3, 5, 7, 9];
 /** Weapons share fixed entity pools; all cooldowns stop with the race simulation. */
 export class WeaponSystem {
-  readonly mines = new ObjectPool<Mine>(32, slot => ({ active: false, slot, x: 0, z: 0, life: 0, level: 1, exploded: false }));
+  readonly mines = new ObjectPool<Mine>(32, slot => ({ active: false, slot, x: 0, z: 0, life: 0, level: 1, exploded: false, variant: '' }));
   /** Happy-meal escort toys (up to three) and shield orbit cones (up to three). */
   readonly toyX = new Float64Array(3);
   readonly toyZ = new Float64Array(3);
@@ -92,6 +92,7 @@ export class WeaponSystem {
           b.x = b.px = x; b.z = b.pz = p.progress + 30;
           b.vx = Math.sin(a) * 900; b.vz = Math.cos(a) * 900 + p.speed * .3;
           b.damage = s.damage[l]; b.life = range / 900; b.kind = w.type === 'burger' ? 1 : 2;
+          b.tex = w.variant ?? '';
           b.level = w.level; b.pierce = w.type === 'burger' ? w.level : w.level >= 3 ? (w.level >= 5 ? 3 : 2) : 1; b.targetSlot = -1; b.hitMask.fill(0);
           c.shots++;
         }
@@ -104,13 +105,14 @@ export class WeaponSystem {
           b.x = b.px = x; b.z = b.pz = p.progress + 26;
           b.vx = Math.sin(a) * 760; b.vz = Math.cos(a) * 760 + p.speed * .3;
           b.damage = s.damage[l]; b.life = 2.6; b.kind = 4;
+          b.tex = w.variant ?? '';
           b.level = w.level; b.pierce = 1; b.targetSlot = target.slot; b.hitMask.fill(0);
           c.shots++;
         }
       } else if (w.type === 'mine') {
         for (let j = 0; j < s.count[l]; j++) {
           const m = this.mines.acquire(); if (!m) break;
-          m.x = x + (s.count[l] === 1 ? 0 : (j - (s.count[l] - 1) / 2) * 44); m.z = p.progress - 44; m.life = 8; m.level = w.level; m.exploded = false;
+          m.x = x + (s.count[l] === 1 ? 0 : (j - (s.count[l] - 1) / 2) * 44); m.z = p.progress - 44; m.life = 8; m.level = w.level; m.exploded = false; m.variant = w.variant ?? '';
         }
       } else {
         const target = w.type === 'ice' ? this.nearest(p, range) : null;

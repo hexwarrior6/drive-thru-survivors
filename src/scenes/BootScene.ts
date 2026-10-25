@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { createPitTextures } from '../data/createPitTextures';
+import { createFoodTextures } from '../data/createFoodTextures';
+import { createWorldTextures } from '../data/createWorldTextures';
 import { CARS } from '../data/cars';
 import { C } from '../data/colors';
 
@@ -126,6 +128,8 @@ export class BootScene extends Phaser.Scene {
       hit.context.fillStyle = '#ffffff'; hit.context.fillRect(0, 0, source.width, source.height); hit.refresh();
     }
     createPitTextures(this);
+    createFoodTextures(this);
+    createWorldTextures(this);
     this.scene.start('Title');
   }
 }

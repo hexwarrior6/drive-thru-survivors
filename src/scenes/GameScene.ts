@@ -12,6 +12,8 @@ import { WaveSystem } from '../systems/WaveSystem';
 import { PIT_CAMERA_SIDE, PIT_PLAYER_X } from '../systems/PitStopLayout';
 import { BASE_SPEED, FIXED_DT, ROAD_LEFT, ROAD_RIGHT, WIDTH } from '../config';
 import { C, TIER_COLORS, TIER_SMOKE } from '../data/colors';
+import { resolveTrackPlan } from '../data/cityProfiles';
+import { variantKeyFor } from '../data/foodArt';
 import { carById, type CarId } from '../data/cars';
 import { themeFor } from '../systems/Theme';
 import { bossBurstCount, bossReward, bossTierOf, enemyHpScale } from '../systems/balance';
@@ -93,13 +95,13 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setScroll(0, 0).setZoom(1);
     const carDef = carById(this.registry.get('car'));
     this.carId = carDef.id;
-    this.track = new TrackGenerator(this);
+    const snapshot = this.registry.get('snapshot') ?? demoSnapshot();
+    this.track = new TrackGenerator(this, resolveTrackPlan(snapshot.city));
     this.skid = this.add.graphics().setDepth(2);
     this.lines = this.add.graphics().setDepth(6);
     this.skidMarks = new SkidMarks(this.track.projection);
     this.particles = new ParticleManager(this, this.track.projection);
     this.player = new Player(this, carDef.id);
-    const snapshot = this.registry.get('snapshot') ?? demoSnapshot();
     this.combat = new CombatSystem(this.particles);
     this.wave = new WaveSystem();
     this.shop = new ShopSystem(snapshot);
@@ -146,7 +148,10 @@ export class GameScene extends Phaser.Scene {
       if (this.wave.state !== 'pit') return;
       this.weapons.clear();
       this.updateDestination(this.wave.number + 1);
-      this.wave.next(this.combat, this.player.physics); this.pitPanel.classList.add('hidden');
+      this.wave.next(this.combat, this.player.physics);
+      // 开出下一轮：赛道整体换上本轮天气（进站时切换，不在战斗中突变）。
+      this.track.applyRound(this.wave.round);
+      this.pitPanel.classList.add('hidden');
       document.body.classList.remove('is-pit');
       document.getElementById('drive-ui')!.classList.remove('hidden');
       this.inputControls.clear(); this.audio.setPaused(false);
@@ -172,6 +177,7 @@ export class GameScene extends Phaser.Scene {
       this.wave.fast = this.fast;
       this.wave.beginCountdown(this.fast ? 1.2 : 3.2);
     }
+    this.track.applyRound(this.wave.round);
     this.hud.update(p, 0);
     this.hud.updateCombat(this.combat, this.wave);
     this.updateDestination();
@@ -184,7 +190,10 @@ export class GameScene extends Phaser.Scene {
     this.player.physics.carSpeedBonus = carDef.speedBonus;
     this.player.physics.carNitroRegen = carDef.nitroRegen;
     this.shop.restore(run.route, run.bagIds);
-    for (let i = 0; i < 5; i++) this.shop.slots[i] = run.slots[i] ? { ...run.slots[i]!, cooldown: 0 } : null;
+    // 旧档没有 variant 字段；解析器是纯函数，按名字重算必然与购买时一致。
+    for (let i = 0; i < 5; i++) this.shop.slots[i] = run.slots[i]
+      ? { ...run.slots[i]!, cooldown: 0, variant: variantKeyFor(run.slots[i]!.type, run.slots[i]!.name) }
+      : null;
     this.combat.health = run.health; this.combat.money = run.money;
     this.combat.kills = run.kills; this.combat.maxCombo = run.maxCombo;
     this.player.physics.distance = run.distance;
@@ -474,6 +483,16 @@ export class GameScene extends Phaser.Scene {
       const y = (i * 83 + this.elapsed * p.speed * 1.6) % this.scale.height;
       const length = 16 + strength * 85;
       this.lines.lineBetween(x, y, x + (right ? -5 : 5), y - length);
+    }
+    // 第四轮雨夜的轻量雨丝：与速度线共用一块 Graphics，约 36 条短斜线。
+    if (this.track.rainy) {
+      const height = this.scale.height;
+      this.lines.lineStyle(1.5, 0xaebfd8, 0.3);
+      for (let i = 0; i < 36; i++) {
+        const x = (i * 53 + 17) % (WIDTH + 40) - 20;
+        const y = (i * 97 + this.elapsed * 1500) % (height + 60) - 30;
+        this.lines.lineBetween(x, y, x - 6, y + 22);
+      }
     }
   }
 }

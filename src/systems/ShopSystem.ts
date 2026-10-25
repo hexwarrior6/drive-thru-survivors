@@ -1,8 +1,9 @@
 import { discoveryScore } from '../data/menuDiscovery';
 import type { Product, Snapshot, Store } from '../data/snapshot';
 import { mapProductToWeapon, mountOf, LATE_GAME_TYPES, MAX_WEAPON_LEVEL, type WeaponType } from '../combat/weaponMapper';
+import { variantKeyFor } from '../data/foodArt';
 import { repairCost as repairCostAt, upgradeCostMultiplier, WAVES_PER_ROUND } from './balance';
-export interface EquippedWeapon { name: string; type: WeaponType; level: number; cooldown: number }
+export interface EquippedWeapon { name: string; type: WeaponType; level: number; cooldown: number; variant?: string }
 export interface Wallet { money: number; health: number }
 /** Fixed mounts: [0] front gun, [1] rear gun, [2..4] aux passives. The stock scatter
  *  gun is built into the car and never occupies a slot. */
@@ -82,7 +83,10 @@ export class ShopSystem {
     }
     wallet.money -= this.price(p, same?.level ?? 0);
     if (same) same.level++;
-    else this.slots[slot!] = { name: p.name, type: mapProductToWeapon(p), level: 1, cooldown: 0 };
+    else {
+      const type = mapProductToWeapon(p);
+      this.slots[slot!] = { name: p.name, type, level: 1, cooldown: 0, variant: variantKeyFor(type, p.name) };
+    }
     this.sold.add(index); this.pending = this.selected = -1; return 'bought';
   }
   repair(wallet: Wallet): boolean {

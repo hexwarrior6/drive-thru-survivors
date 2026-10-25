@@ -29,6 +29,8 @@ export interface Enemy {
 export interface Bullet {
   active: boolean; slot: number; x: number; z: number; px: number; pz: number;
   vx: number; vz: number; life: number; damage: number; kind: number; level: number; pierce: number; targetSlot: number; hitMask: Uint8Array;
+  /** 变体美术贴图 key；空串回落到按 kind 的默认弹幕贴图。 */
+  tex: string;
 }
 export interface Coin {
   active: boolean; slot: number; x: number; z: number; px: number; pz: number;
@@ -41,7 +43,7 @@ export interface CombatEffects { explode(x: number, z: number, kind: number): vo
 /** Simulation owns no Phaser objects. Every slot, free list and grid cell is allocated at startup. */
 export class CombatSystem {
   readonly enemies = new ObjectPool<Enemy>(128, slot => ({ active: false, slot, kind: 0, x: 0, z: 0, px: 0, pz: 0, hp: 0, flash: 0, contact: 0, vx: 0, vz: 0, slow: 1, slowTime: 0, burn: 0, burnDamage: 0, frozen: false, phase: 0, timer: 0, tx: 0, throwCd: 0 }));
-  readonly bullets = new ObjectPool<Bullet>(256, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, damage: PELLET_DAMAGE, kind: 0, level: 1, pierce: 1, targetSlot: -1, hitMask: new Uint8Array(128) }));
+  readonly bullets = new ObjectPool<Bullet>(256, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, damage: PELLET_DAMAGE, kind: 0, level: 1, pierce: 1, targetSlot: -1, hitMask: new Uint8Array(128), tex: '' }));
   readonly coins = new ObjectPool<Coin>(128, slot => ({ active: false, slot, x: 0, z: 0, px: 0, pz: 0, vx: 0, vz: 0, life: 0, value: 0, magnet: false }));
   readonly damage = new ObjectPool<Damage>(64, slot => ({ active: false, slot, x: 0, z: 0, life: 0, value: 0 }));
   private readonly heads = new Int32Array(GRID_COLUMNS * GRID_ROWS);

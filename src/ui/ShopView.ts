@@ -1,5 +1,6 @@
 import { productHighlight } from '../data/menuDiscovery';
-import { mapProductToWeapon, mountNames, mountOf, weaponNames, weaponStats, MAX_WEAPON_LEVEL } from '../combat/weaponMapper';
+import { mapProductToWeapon, mountNames, mountOf, weaponNames, weaponStats, MAX_WEAPON_LEVEL, type WeaponType } from '../combat/weaponMapper';
+import { FOOD_DATA_URLS, variantKeyFor } from '../data/foodArt';
 import type { ShopSystem, Wallet } from '../systems/ShopSystem';
 import { statIcon } from './icons';
 const icons = {
@@ -8,7 +9,13 @@ const icons = {
  dessert: '<path fill="#edb355" stroke="#754329" stroke-width="2" d="m10 29 26-18 27 18-8 29H18Z"/><path stroke="#fff9e8" stroke-width="4" d="m23 27 20 23m-3-27L24 49"/><path fill="#ad4931" d="m10 29 53 0-27 9Z"/>' ,
  drink: '<path fill="#80c6c3" stroke="#754329" stroke-width="2" d="m17 22 6 38h29l5-38Z"/><path stroke="#e75239" stroke-width="4" d="m38 26 5-20h13"/><path stroke="#754329" stroke-width="3" d="M14 22h46"/><circle fill="#fff9e8" cx="36" cy="42" r="8"/>',
 };
+/** Legacy per-category SVG, kept as the fallback when boot textures are absent (tests). */
 function foodIcon(type: string): string { return `<svg viewBox="0 0 72 68" aria-hidden="true">${type === 'heal' || type === 'shield' || type === 'wingman' ? icons.dessert : type === 'burger' || type === 'flame' || type === 'starter' || type === 'missile' ? icons.burger : type === 'fries' || type === 'mine' ? icons.fries : icons.drink}</svg>`; }
+/** Per-product art: the same baked variant texture the bullets use, as a data URL. */
+function foodArt(type: WeaponType, name: string): string {
+  const url = FOOD_DATA_URLS[variantKeyFor(type, name)];
+  return url ? `<img src="${url}" alt="" draggable="false">` : foodIcon(type);
+}
 function node(tag: string, text: string, className = ''): HTMLElement { const e = document.createElement(tag); e.textContent = text; e.className = className; return e; }
 export class ShopView {
   private expandedMenu = false;
@@ -32,7 +39,7 @@ export class ShopView {
       const next = s.sold.has(i) ? (same?.level ?? 1) : Math.min(MAX_WEAPON_LEVEL, level + 1);
       const cost = s.price(p, level);
       const card = node('article', '', i < 3 ? 'food-card' : 'food-card menu-card');
-      const art = node('div', '', 'food-art'); art.innerHTML = foodIcon(type); card.append(art);
+      const art = node('div', '', 'food-art'); art.innerHTML = foodArt(type, p.name); card.append(art);
       const highlight = productHighlight(p);
       if (highlight) card.append(node('span', highlight, 'product-highlight'));
       card.append(node('h3', p.name));
@@ -72,7 +79,7 @@ export class ShopView {
         const b = node('button', '', `weapon-slot${pendingMounts.length ? (eligible ? ' replaceable' : ' locked') : ''}${s.selected === i ? ' selected' : ''}`) as HTMLButtonElement;
         b.style.gridColumn = String(i + 1); b.style.gridRow = '2';
         b.innerHTML = weapon
-          ? `<span class="slot-icon">${foodIcon(weapon.type)}</span><span class="slot-name">${weaponNames[weapon.type]}</span><span class="slot-level">Lv.${weapon.level}</span>`
+          ? `<span class="slot-icon">${foodArt(weapon.type, weapon.name)}</span><span class="slot-name">${weaponNames[weapon.type]}</span><span class="slot-level">Lv.${weapon.level}</span>`
           : `<span class="slot-icon slot-icon-empty"></span><span class="slot-empty">${group.label} · 空</span>`;
         b.disabled = pendingMounts.length === 0 || !eligible;
         b.addEventListener('click', () => { s.selected = i; this.render(); }); slots.append(b);

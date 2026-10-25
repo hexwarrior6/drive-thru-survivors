@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { carById, type CarId } from '../data/cars';
 import { demoSnapshot } from '../data/snapshot';
+import { resolveTrackPlan } from '../data/cityProfiles';
 import { themeFor } from '../systems/Theme';
 import { clearRun } from '../systems/SaveSystem';
 import { Player } from '../entities/Player';
@@ -17,7 +18,8 @@ export class SelectScene extends Phaser.Scene {
     // Abandoning from the pause or pit dialogs lands here: close every game overlay
     // they left open, mirroring the cleanup ResultScene does on settlement.
     document.body.classList.remove('is-driving', 'low-health', 'is-pit');
-    this.track = new TrackGenerator(this);
+    // 选车页背景即预览本城风貌（快照在城市选择后已就位）。
+    this.track = new TrackGenerator(this, resolveTrackPlan((this.registry.get('snapshot') ?? demoSnapshot()).city));
     this.car = new Player(this);
     const panel = document.getElementById('select-panel')!;
     panel.classList.remove('hidden');

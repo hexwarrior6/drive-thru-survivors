@@ -3,6 +3,7 @@ import type { WaveSystem } from '../systems/WaveSystem';
 import type { DriftPhysics } from '../systems/DriftPhysics';
 import type { Theme } from '../systems/Theme';
 import { WAVES_PER_ROUND } from '../systems/balance';
+import { weatherOf } from '../systems/weather';
 import { statIcon } from './icons';
 const get = (id: string) => document.getElementById(id)!;
 const labels = ['保持转向蓄力', '蓝焰就绪 · 松手加速', '橙焰就绪 · 松手加速', '紫焰全开 · 松手加速'];
@@ -29,6 +30,8 @@ export class HUD {
   private bossLabel = document.querySelector<HTMLElement>('#boss-bar span')!;
   private combo = get('combo'); private comboCount = get('combo-count');
   private campaignTag = get('campaign-tag');
+  private weather = get('weather-tag');
+  private lastWeather = '';
   private lastCombo = -1;
   constructor() {
     const money = get('eco-money');
@@ -40,6 +43,8 @@ export class HUD {
   }
   updateCombat(c: CombatSystem, w: WaveSystem): void {
     this.round.textContent = String(w.round);
+    const weather = weatherOf(w.round);
+    if (weather.name !== this.lastWeather) { this.lastWeather = weather.name; this.weather.textContent = ` · ${weather.name}`; }
     this.wave.textContent = String(((w.number - 1) % WAVES_PER_ROUND) + 1).padStart(2, '0');
     const clock = w.state === 'combat' ? (w.isBossWave ? 'BOSS' : String(Math.ceil(w.remaining)))
       : w.state === 'countdown' ? '准备' : w.state === 'entering' ? '进站中' : w.state === 'exiting' ? '出站中'
