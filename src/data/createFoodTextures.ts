@@ -1,27 +1,21 @@
 import type Phaser from 'phaser';
 import { FOOD_VARIANTS, FOOD_DATA_URLS } from './foodArt';
 
-/**
- * Boot 阶段把 foodArt 的全部变体烘成贴图（generateTexture 一次、运行时零栅格化），
- * 同时把每张贴图导出为 dataURL 写回 FOOD_DATA_URLS，供 DOM 商店使用——商店卡片、
- * 武器槽与游戏内弹幕同图，观感完全一致（测试环境无 Phaser，该映射保持为空，
- * ShopView 自行回落到内置 SVG）。
- */
-
+/** Bake smooth Canvas curves once. DOM gets 3× art; combat keeps logical texture sizes. */
 export function createFoodTextures(scene: Phaser.Scene): void {
-  const g = scene.make.graphics({ x: 0, y: 0 });
+  const scale = 3;
   for (const list of Object.values(FOOD_VARIANTS)) {
     for (const variant of list) {
-      variant.draw(g);
-      g.generateTexture(variant.key, variant.w, variant.h);
-      g.clear();
-    }
-  }
-  g.destroy();
-  for (const list of Object.values(FOOD_VARIANTS)) {
-    for (const variant of list) {
-      const source = scene.textures.get(variant.key).getSourceImage() as HTMLCanvasElement;
-      if (typeof source.toDataURL === 'function') FOOD_DATA_URLS[variant.key] = source.toDataURL();
+      const art = document.createElement('canvas');
+      art.width = variant.w * scale; art.height = variant.h * scale;
+      const ctx = art.getContext('2d')!;
+      ctx.scale(scale, scale);
+      variant.draw(ctx);
+      FOOD_DATA_URLS[variant.key] = art.toDataURL();
+      // Preserve frame dimensions, bulletScale and every existing sprite consumer.
+      const texture = scene.textures.createCanvas(variant.key, variant.w, variant.h)!;
+      texture.context.drawImage(art, 0, 0, variant.w, variant.h);
+      texture.refresh();
     }
   }
 }
