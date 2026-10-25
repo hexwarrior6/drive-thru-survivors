@@ -116,10 +116,12 @@ export class CodexView {
     this.detailIndex = list.findIndex(w => w.id === id);
     const def = weaponById(id);
     const l = (icon: StatIcon, text: string) => `<span class="stat">${statIcon(icon)}${text}</span>`;
-    const stats = [1, 2, 3, 4, 5].map(level => {
-      const lines = weaponStats(def.id, level, 'a').map(s => l(s.icon, s.text)).join('');
-      return `<div class="codex-level"><i>Lv.${level}</i>${lines}</div>`;
-    }).join('');
+    // 每行一条等级；用最大列数建网格，让各等级的属性列上下对齐（字宽不再影响）。
+    const rows = [1, 2, 3, 4, 5].map(level => ({ level, lines: weaponStats(def.id, level, 'a') }));
+    const cols = Math.max(...rows.map(r => r.lines.length));
+    const stats = rows.map(({ level, lines }) =>
+      `<div class="codex-level" style="grid-template-columns:32px repeat(${cols}, minmax(0,auto))">` +
+      `<i>Lv.${level}</i>` + lines.map(s2 => l(s2.icon, s2.text)).join('') + `</div>`).join('');
     const branches = def.branches
       ? `<div class="codex-branches">${def.branches.map(b => `<span><b>Lv.3 ${b.name}</b>${b.note}</span>`).join('')}</div>`
       : '';
