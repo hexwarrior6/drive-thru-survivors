@@ -7,8 +7,12 @@ import { MAX_WEAPON_LEVEL } from '../systems/balance';
 import { statIcon } from './icons';
 /** Per-product art: the same baked variant texture the bullets use, as a data URL. */
 function productArt(group: string, name: string): string {
-  const key = variantKeyFor(group as never, name);
-  const url = FOOD_DATA_URLS[key];
+  const url = FOOD_DATA_URLS[variantKeyFor(group as never, name)];
+  return url ? `<img src="${url}" alt="" draggable="false">` : '';
+}
+/** 武器固定美术（详情弹层头图）；无 artKey 时回落餐品图。 */
+function weaponArt(artKey: string | undefined, group: string, name: string): string {
+  const url = (artKey && FOOD_DATA_URLS[artKey]) || FOOD_DATA_URLS[variantKeyFor(group as never, name)];
   return url ? `<img src="${url}" alt="" draggable="false">` : '';
 }
 function slotArt(art: string): string {
@@ -18,7 +22,13 @@ function slotArt(art: string): string {
 function node(tag: string, text: string, className = ''): HTMLElement { const e = document.createElement(tag); e.textContent = text; e.className = className; return e; }
 export class ShopView {
   private expandedMenu = false;
-  constructor(private readonly shop: ShopSystem, private readonly wallet: Wallet, private readonly reason: string, private readonly changed: () => void) {}
+  private detail: { wid: string; productName: string; identityLabel: string; next: number; branch?: BranchId } | null = null;
+  constructor(private readonly shop: ShopSystem, private readonly wallet: Wallet, private readonly reason: string, private readonly changed: () => void) {
+    document.getElementById('shop-detail-close')?.addEventListener('click', () => { this.detail = null; this.renderDetail(); });
+    document.getElementById('shop-detail')?.addEventListener('click', e => {
+      if (e.target === e.currentTarget) { this.detail = null; this.renderDetail(); }
+    });
+  }
   open(wave: number): void { this.shop.open(wave); this.expandedMenu = false; this.render(); }
   private render(): void {
     const s = this.shop, w = this.wallet;
@@ -41,20 +51,21 @@ export class ShopView {
       const identity = identityFor(p.name, p.category);
       const generic = def.family === '通用';
       const card = node('article', '', i < 3 ? 'food-card' : 'food-card menu-card');
-      const art = node('div', '', 'food-art'); art.innerHTML = productArt(identity.artGroup, p.name); card.append(art);
       const highlight = productHighlight(p);
       if (highlight) card.append(node('span', highlight, 'product-highlight'));
-      card.append(node('h3', p.name));
-      // §9.3 第 1 行：真实餐品名与专属武器名并列，家族作次级标签。
-      const title = node('b', ''); title.innerHTML = `<i class="mount-badge">${generic ? '通用改装' : `专属 · ${identity.label}`}</i>${p.name} → ${def.name}｜${MOUNT_NAMES[def.mount]}${next > 1 ? ` Lv.${next}` : ''}`;
-      card.append(title);
-      // §9.3 第 2 行：一句行为与弱点。
-      card.append(node('p', def.blurb, 'weapon-blurb'));
-      // §9.3 第 3 行：本次变化；Lv.3 需要显式选择互斥分支。
-      const desc = node('p', '');
-      const change = same ? `升阶 Lv.${level}→${next}` : '购买 · Lv.1';
-      desc.innerHTML = `<span class="stat">${change}</span>` + weaponStats(wid, next, same?.branch).map(st => `<span class="stat">${statIcon(st.icon)}${st.text}</span>`).join('');
-      card.append(desc);
+      // 行式卡片：头图 | 餐品名+武器行 | 详情；规格全部收进弹层。
+      const cardRow = node('div', '', 'food-card-row');
+      const art = node('div', '', 'food-art'); art.innerHTML = productArt(identity.artGroup, p.name); cardRow.append(art);
+      const cardMain = node('div', '', 'food-card-main');
+      cardMain.append(node('h3', p.name));
+      const title = node('b', ''); title.innerHTML = `<i class="mount-badge">${generic ? '通用改装' : identity.label}</i>${def.name} · ${MOUNT_NAMES[def.mount]}${next > 1 ? ` · Lv.${next}` : ''}`;
+      cardMain.append(title);
+      cardRow.append(cardMain);
+      const detailButton = node('button', '详情', 'card-detail-button') as HTMLButtonElement;
+      detailButton.type = 'button';
+      detailButton.addEventListener('click', () => { this.detail = { wid, productName: p.name, identityLabel: identity.label, next, branch: same?.branch }; this.renderDetail(); });
+      cardRow.append(detailButton);
+      card.append(cardRow);
       if (s.needsBranch(p) && !s.sold.has(i)) {
         const branches = node('div', '', 'branch-buttons');
         for (const b of def.branches ?? []) {
@@ -190,5 +201,25 @@ export class ShopView {
     const repair = document.getElementById('repair') as HTMLButtonElement; repair.disabled = w.money < cost || w.health >= 100;
     repair.textContent = `维修 +30 车况 · ${cost} 金币`;
     repair.onclick = () => { s.repair(w); this.render(); this.changed(); };
+    this.renderDetail();
+  }
+  /** 卡片详情弹层：完整行为弱点 / 逐级数值 / 酱料兼容（图鉴同源定义）。 */
+  private renderDetail(): void {
+    const panel = document.getElementById('shop-detail')!;
+    if (!this.detail) { panel.classList.add('hidden'); return; }
+    const { wid, productName, identityLabel, next, branch } = this.detail;
+    const def = weaponById(wid);
+    const lines = weaponStats(wid, next, branch).map(st => `<span class="stat">${statIcon(st.icon)}${st.text}</span>`).join('');
+    const branches = def.branches
+      ? `<div class="codex-branches">${def.branches.map(b => `<span><b>Lv.3 ${b.name}</b>${b.note}</span>`).join('')}</div>`
+      : '';
+    document.getElementById('shop-detail-body')!.innerHTML = `
+      <div class="codex-detail-head">${weaponArt(def.artKey, identityFor(productName, 'main').artGroup, productName)}
+        <div><h3>${productName}<small> → ${def.name}</small></h3>
+        <p class="weapon-blurb">${def.blurb}</p></div>
+      </div>${branches}
+      <div class="shop-detail-stats"><i>Lv.${next}</i>${lines}</div>
+      <p class="codex-compat">专属身份：${identityLabel} · ${def.family}家族 · ${MOUNT_NAMES[def.mount]}</p>`;
+    panel.classList.remove('hidden');
   }
 }

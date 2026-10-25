@@ -22,9 +22,13 @@
 </div>
 <div id="combo" class="combo hidden" aria-hidden="true"><b id="combo-count">0</b><span>COMBO</span></div>
 <div id="pit-panel" class="pause-panel pit-panel hidden" role="dialog" aria-modal="true" aria-labelledby="pit-heading">
+<div class="pit-head">
 <span class="title-tag">DRIVE-THRU · 武装补给</span><h2 id="pit-heading">安全进站</h2>
-<p id="shop-source"></p><p id="shop-address"></p>
-<p id="pit-campaign" class="pit-campaign"></p><p id="shop-coupon" class="shop-coupon hidden"></p>
+<p id="shop-address"></p>
+<p class="shop-meta"><span id="shop-source"></span><span id="pit-campaign" class="pit-campaign"></span></p>
+<p id="shop-coupon" class="shop-coupon hidden"></p>
+</div>
+<div class="pit-scroll shop-only">
 <div id="sauce-tray" class="sauce-tray hidden" aria-label="已装备酱料"></div>
 <div id="sauce-reward" class="sauce-reward hidden" role="group" aria-label="酱料奖励">
 <span class="title-tag">SEASONING · 游戏调味奖励</span>
@@ -33,14 +37,23 @@
 <div id="sauce-cards"></div>
 <button id="sauce-skip" class="reset-button" type="button">都不合适 · 拿 15 金币</button>
 </div>
-<div id="shop-cards" class="shop-only"></div>
-<details id="store-menu" class="shop-only"><summary id="menu-summary">查看本店其他餐品</summary><p class="menu-explanation">按本次候选店菜单差异和名称标记推荐，不代表门店独家。仅列已核价单品。</p><div id="menu-products"></div></details>
-<div id="shop-services" class="shop-only" aria-label="游戏改装服务"></div>
-<button id="repair" class="repair-button shop-only">维修 +30 车况 · 10 金币</button>
-<div id="weapon-slots" class="shop-only" aria-label="前武器 / 后武器 / 车辆模块槽位"></div>
+<div id="shop-cards"></div>
+<details id="store-menu"><summary id="menu-summary">查看本店其他餐品</summary><p class="menu-explanation">按本次候选店菜单差异和名称标记推荐，不代表门店独家。仅列已核价单品。</p><div id="menu-products"></div></details>
+<div id="shop-services" aria-label="游戏改装服务"></div>
 <div id="replacement" class="hidden"><p>目标炮台已有武器，选择要替换的槽位</p><p id="replacement-note"></p><button id="confirm-replace">确认替换</button><button id="cancel-replace">取消</button></div>
-<p class="shop-note shop-only">仅使用游戏金币 · 餐品能力为游戏虚构</p>
-<button id="next-wave" class="primary shop-only">出站冲刺 · 下一波 <span>↗</span></button></div>
+</div>
+<div class="pit-dock shop-only">
+<button id="repair" class="repair-button">维修 +30 车况 · 10 金币</button>
+<div id="weapon-slots" aria-label="前武器 / 后武器 / 车辆模块槽位"></div>
+<button id="next-wave" class="primary">出站冲刺 · 下一波 <span>↗</span></button>
+<p class="shop-note">仅使用游戏金币 · 餐品能力为游戏虚构</p>
+</div>
+<div id="shop-detail" class="codex-detail shop-detail hidden" role="dialog" aria-modal="true" aria-label="武器详情">
+<div class="codex-detail-card">
+<button id="shop-detail-close" class="codex-x" aria-label="关闭详情">✕</button>
+<div id="shop-detail-body"></div>
+</div>
+</div></div>
 <div id="select-panel" class="pause-panel select-panel hidden" role="dialog" aria-modal="true" aria-labelledby="select-heading">
 <span class="title-tag">CHOOSE YOUR KART</span><h2 id="select-heading">选一辆车，出发。</h2>
 <p id="select-route"><b id="select-city"></b> · <span id="select-campaign"></span></p>
