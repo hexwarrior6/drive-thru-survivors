@@ -26,6 +26,18 @@ export function statIcon(name: StatIcon, size = 10): string {
   return `<svg class="stat-icon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
 }
 
+/** Vehicle-module art for the shop service list and installed slots. */
+const modulePaths: Record<string, string> = {
+  'M-drift': '<circle cx="10.5" cy="12.5" r="7.3" fill="#ffcf52" stroke="#754329" stroke-width="1.6"/><path fill="none" stroke="#ad4931" stroke-width="1.8" stroke-linecap="round" d="M10.5 12.5c2.7 0 3.1-4.1 0-4.1s-4.4 2.3-4.4 4.4 2.5 4.4 4.9 4.4 4.9-2 4.9-4.9"/><circle cx="10.5" cy="12.5" r="1.5" fill="#754329"/><path stroke="#e75239" stroke-width="1.8" stroke-linecap="round" d="M19 5h3M18 9h2"/>',
+  'M-bumper': '<path fill="#70cfff" stroke="#754329" stroke-width="1.6" d="M3.5 6.5h17v5h-17z"/><path fill="none" stroke="#754329" stroke-width="1.6" d="M6.5 11.5v6M17.5 11.5v6"/><path stroke="#e75239" stroke-width="1.8" stroke-linecap="round" d="M8.5 14.5h7"/><path fill="#754329" d="M5.5 17.5h2v2h-2zm11 0h2v2h-2z"/>',
+  'M-pump': '<rect x="4.5" y="4.5" width="10" height="15" rx="2.2" fill="#8bbf57" stroke="#754329" stroke-width="1.6"/><rect x="6.8" y="7" width="5.4" height="3.2" rx="0.8" fill="#fff9e8" stroke="#754329" stroke-width="1"/><path fill="none" stroke="#754329" stroke-width="1.5" stroke-linecap="round" d="M14.5 8.5h2.2a1.6 1.6 0 0 1 1.6 1.6V17a1.8 1.8 0 0 1-1.8 1.8h-2.2"/><path fill="#e75239" d="M7.5 12.2h3.6v1.6H7.5zm1 0h1.6v3.6H8.5z"/>',
+};
+
+export function moduleIcon(id: string, size = 24): string {
+  const path = modulePaths[id];
+  return path ? `<svg class="module-icon" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${path}</svg>` : '';
+}
+
 /** Same drawing recolored through currentColor so CSS can drive the state color. */
 export function monoIcon(name: StatIcon, size = 12): string {
   const mono = paths[name].replace(/(fill|stroke)="#[0-9a-fA-F]{3,8}"/g, '$1="currentColor"');

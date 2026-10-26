@@ -4,7 +4,7 @@ import { weaponById, weaponStats, moduleById, MOUNT_NAMES, MODULES, type BranchI
 import { identityFor } from '../combat/foodIdentity';
 import type { ShopStopState, ShopSystem, Wallet } from '../systems/ShopSystem';
 import { MAX_WEAPON_LEVEL } from '../systems/balance';
-import { statIcon } from './icons';
+import { statIcon, moduleIcon } from './icons';
 /** Per-product art: the same baked variant texture the bullets use, as a data URL. */
 function productArt(group: string, name: string): string {
   const url = FOOD_DATA_URLS[variantKeyFor(group as never, name)];
@@ -20,6 +20,12 @@ function slotArt(art: string): string {
   return url ? `<img src="${url}" alt="" draggable="false">` : '<span class="slot-icon-empty"></span>';
 }
 function node(tag: string, text: string, className = ''): HTMLElement { const e = document.createElement(tag); e.textContent = text; e.className = className; return e; }
+function serviceLabel(icon: string, text: string): HTMLElement {
+  const label = node('div', '', 'service-label');
+  const art = node('span', '', 'service-icon'); art.innerHTML = icon;
+  label.append(art, node('b', text));
+  return label;
+}
 export class ShopView {
   private detail: { wid: string; productName: string; identityLabel: string; next: number; branch?: BranchId } | null = null;
   constructor(private readonly shop: ShopSystem, private readonly wallet: Wallet, private readonly reason: string, private readonly changed: () => void) {
@@ -136,7 +142,7 @@ export class ShopView {
     if (s.freeFrontAvailable()) {
       const cell = node('div', '', 'service-cell') as HTMLDivElement;
       cell.title = '第一站统一补全前向火力；游戏服务，不影响餐品标价。';
-      cell.append(node('b', '基础前炮'));
+      cell.append(serviceLabel(statIcon('burst', 20), '基础前炮'));
       const button = node('button', '免费安装') as HTMLButtonElement;
       button.addEventListener('click', () => { s.installFrontService(); this.render(); this.changed(); });
       cell.append(button); grid.append(cell);
@@ -145,7 +151,7 @@ export class ShopView {
       const installed = s.moduleInstalled(mod.id);
       const cell = node('div', '', 'service-cell') as HTMLDivElement;
       cell.title = mod.note;
-      cell.append(node('b', mod.name));
+      cell.append(serviceLabel(moduleIcon(mod.id, 20), mod.name));
       const button = node('button', '') as HTMLButtonElement;
       if (installed) { button.textContent = '已安装'; button.disabled = true; }
       else {
@@ -165,7 +171,7 @@ export class ShopView {
       const cost = s.upgradeServiceCost(i);
       const cell = node('div', '', 'service-cell') as HTMLDivElement;
       cell.title = '本店没有能喂养这件武器的餐品；用改装服务直接升阶。';
-      cell.append(node('b', `${def.name} Lv.${weapon.level + 1}`));
+      cell.append(serviceLabel(statIcon('up', 20), `${def.name} Lv.${weapon.level + 1}`));
       if (weapon.level + 1 === 3 && !weapon.branch && def.branches) {
         cell.classList.add('expanded');
         const branches = node('div', '', 'branch-buttons');
@@ -211,7 +217,10 @@ export class ShopView {
           const def = weaponById(weapon.weaponId);
           b.innerHTML = `<span class="slot-icon">${slotArt(weapon.art)}</span><span class="slot-name">${def.name}${weapon.branch ? ' · ' + (def.branches?.find(x => x.id === weapon.branch)?.name ?? '') : ''}</span><span class="slot-level">Lv.${weapon.level}</span>`;
         } else if (weapon) {
-          b.innerHTML = `<span class="slot-icon">${slotArt('')}</span><span class="slot-name">${moduleById(weapon.weaponId)?.name ?? weapon.name}</span><span class="slot-level">已装</span>`;
+          const icon = moduleIcon(weapon.weaponId, 24) || '<span class="slot-icon-empty"></span>';
+          const name = moduleById(weapon.weaponId)?.name ?? weapon.name;
+          b.innerHTML = `<span class="slot-icon">${icon}</span><span class="slot-name">${name}</span>`;
+          b.title = `${name} · 已安装`;
         } else {
           b.innerHTML = `<span class="slot-icon slot-icon-empty"></span><span class="slot-empty">空</span>`;
         }
