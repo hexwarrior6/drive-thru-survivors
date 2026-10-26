@@ -20,7 +20,7 @@ test('random route stays stable, visits each store before repeats and avoids con
   const a=new ShopSystem(snapshot,()=>0),b=new ShopSystem(snapshot,()=>.999);
   assert.notEqual(a.destination(1).id,b.destination(1).id);
 });
-test('implemented weapons top the cards, discovery ranks the rest, whole menu stays buyable', () => {
+test('implemented weapons top the cards and discovery ranks the featured three', () => {
   const snapshot = demoSnapshot();
   snapshot.stores = [snapshot.stores[0]];
   snapshot.stores[0].products[4].menuPresence = {stores:1,compared:4};
@@ -31,7 +31,8 @@ test('implemented weapons top the cards, discovery ranks the rest, whole menu st
   // 餐品发现度继续决定其余卡片的顺序：1/4 门店有售的可口可乐排在其组首位。
   const colaAt = shop.offers.findIndex(p => p.name === '可口可乐');
   assert.ok(colaAt >= 0);
-  assert.equal(shop.offers.length,snapshot.stores[0].products.length);
+  assert.equal(shop.offers.length, 3);
+  assert.ok(shop.canReroll(), 'the rest of the priced menu is reachable through reroll');
   // 可口可乐 → 可乐高压脉冲炮（W21 已实装），后槽被初始散弹占据 → 显式替换。
   const wallet={money:1000,health:100};
   assert.equal(shop.buy(colaAt,wallet),'replace');

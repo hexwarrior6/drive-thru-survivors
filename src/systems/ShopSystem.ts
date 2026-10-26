@@ -5,6 +5,7 @@ import { weaponById, moduleById, type BranchId } from '../combat/weaponCatalog';
 import {
   repairCost as repairCostAt, upgradeCostMultiplier, MAX_WEAPON_LEVEL,
   MODULE_PRICES, SERVICE_UPGRADE_BASE, REPLACE_CREDIT, FREE_FRONT_WAVE,
+  rerollCost as rerollCostAt,
 } from './balance';
 
 /** 五槽语义（§4.1）：[0] 前武器 · [1] 后武器 · [2..4] 车辆模块；酱料独立收藏不占槽。 */
@@ -23,6 +24,10 @@ export class ShopSystem {
   readonly slots: (EquippedWeapon | null)[] = [null, scatterGun(), null, null, null];
   offers: Product[] = [];
   sold = new Set<number>();
+  /** 本店本次停靠已购买的餐品；重投只换未购买的餐品。 */
+  private readonly purchased = new Set<string>();
+  /** 本次停靠已经重投了几次；价格随次数抬升。 */
+  private rerolls = 0;
   pending = -1;
   /** 替换流程记忆的分支选择：Lv.3 替换购买时确认按钮沿用（§6）。 */
   pendingBranch?: BranchId;
@@ -64,10 +69,60 @@ export class ShopSystem {
       return def.ready && def.family !== '通用' && def.family !== '服务' ? 0 : 1;
     };
     products.sort((a, b) => featured(a) - featured(b));
-    this.offers = products; this.sold.clear(); this.pending = this.selected = -1;
+    this.offers = products.slice(0, 3);
+    this.purchased.clear(); this.rerolls = 0; this.sold.clear();
+    this.pending = this.selected = -1; this.pendingBranch = undefined;
     const coupon = this.snapshot.coupons[0];
     if (coupon) { this.discount = 0.9; this.couponTitle = coupon.title; }
     else { this.discount = 1; this.couponTitle = ''; }
+  }
+  /** 下一次重投的价格：随波次上涨，本次停靠每投一次再 +2。 */
+  rerollPrice(): number { return rerollCostAt(this.wave, this.rerolls); }
+  /** 付费重投：换一批未购买的本店餐品，并取消未完成的替换选择。 */
+  reroll(wallet: Wallet): 'rolled' | 'exhausted' | 'unaffordable' {
+    const current = new Set(this.offers.map(p => p.id));
+    const pool = this.store.products.filter(p => !this.purchased.has(p.id));
+    const fresh = pool.filter(p => !current.has(p.id));
+    if (pool.length < 3 || fresh.length === 0) return 'exhausted';
+    const cost = this.rerollPrice();
+    if (wallet.money < cost) return 'unaffordable';
+    // 先按武器种类去重，三张卡尽量展示不同武器；不足三张再用其余餐品补齐。
+    const picked: Product[] = [];
+    const kinds = new Set<string>();
+    for (const p of this.shuffled(fresh)) {
+      const kind = this.weaponFor(p);
+      if (kinds.has(kind)) continue;
+      kinds.add(kind); picked.push(p);
+      if (picked.length === 3) break;
+    }
+    for (const p of this.shuffled(fresh)) {
+      if (picked.length === 3) break;
+      if (!picked.includes(p)) picked.push(p);
+    }
+    for (const p of this.shuffled(pool.filter(p => current.has(p.id)))) {
+      if (picked.length === 3) break;
+      if (!picked.includes(p)) picked.push(p);
+    }
+    if (picked.length < 3) return 'exhausted';
+    wallet.money -= cost;
+    this.rerolls++;
+    this.offers = this.shuffled(picked);
+    this.sold.clear();
+    this.pending = this.selected = -1; this.pendingBranch = undefined;
+    return 'rolled';
+  }
+  canReroll(): boolean {
+    const current = new Set(this.offers.map(p => p.id));
+    const pool = this.store.products.filter(p => !this.purchased.has(p.id));
+    return pool.length >= 3 && pool.some(p => !current.has(p.id));
+  }
+  private shuffled<T>(items: T[]): T[] {
+    const out = [...items];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(this.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
   }
   basePrice(p: Product): number { return Math.max(1, Math.ceil(p.price / 100)); }
   /** Upgrade list price at the given current level, before any coupon. */
@@ -133,6 +188,7 @@ export class ShopSystem {
     } else {
       this.slots[slot] = { weaponId: wid, name: p.name, level: 1, cooldown: 0, branch, invested: paid, art: resolveArt(wid, p.name) };
     }
+    this.purchased.add(p.id);
     this.sold.add(index); this.pending = this.selected = -1; this.pendingBranch = undefined; return 'bought';
   }
   /** 改装服务升阶（§6 兜底）：材料不出现时的成长路径，价格单独列示。 */
@@ -140,9 +196,9 @@ export class ShopSystem {
     const w = this.slots[slotIndex];
     return w ? Math.max(1, Math.ceil(SERVICE_UPGRADE_BASE * upgradeCostMultiplier(w.level))) : 0;
   }
-  /** 本店是否没有能喂养该武器的商品（决定是否展示改装服务卡）。 */
+  /** 本店完整菜单是否没有能喂养该武器的商品（重投只换展示，不影响这个判断）。 */
   lacksMaterial(w: EquippedWeapon): boolean {
-    return !this.offers.some(p => this.equipped(p) === w);
+    return !this.store.products.some(p => this.equipped(p) === w);
   }
   upgradeService(slotIndex: number, wallet: Wallet, branch?: BranchId): 'bought' | 'unavailable' | 'branch' {
     const w = this.slots[slotIndex];

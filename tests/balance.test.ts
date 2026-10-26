@@ -4,7 +4,7 @@ import {
   WAVES_PER_RUN, WAVES_PER_ROUND, ROUNDS_PER_RUN, MAX_WEAPON_LEVEL, roundOf, isBossWave, bossTierOf, bossName,
   waveDuration, enemyHpScale, contactDamage, hazardInterval, pursuitInterval, pursuitPack,
   bossHpScale, bossTelegraph, bossSlamSpeed, bossThrowInterval, bossCones, bossReward,
-  pitArrivalBonus, repairCost, upgradeCostMultiplier,
+  pitArrivalBonus, repairCost, upgradeCostMultiplier, rerollCost,
 } from '../src/systems/balance';
 
 test('run structure: four rounds of five waves, boss closing each round', () => {
@@ -56,4 +56,14 @@ test('economy curves: floor income, rising repair pressure, upgrade premium', ()
   assert.equal(upgradeCostMultiplier(9), 6, 'levels past the table clamp to the top multiplier');
   const totalForMax = [0, 1, 2, 3, 4].reduce((sum, l) => sum + upgradeCostMultiplier(l), 0);
   assert.ok(totalForMax > 14.5 && totalForMax < 17, `a Lv5 weapon costs ~15.8x base (got ${totalForMax})`);
+});
+
+test('reroll price scales with the wave and repeated rolls at one stop', () => {
+  assert.deepEqual([0, 1, 2, 3].map(used => rerollCost(1, used)), [3, 5, 7, 9]);
+  assert.deepEqual([0, 1, 2, 3].map(used => rerollCost(10, used)), [7, 9, 11, 13]);
+  assert.deepEqual([0, 1, 2, 3].map(used => rerollCost(20, used)), [12, 14, 16, 18]);
+  for (let wave = 2; wave <= WAVES_PER_RUN; wave++) {
+    assert.ok(rerollCost(wave, 0) >= rerollCost(wave - 1, 0), 'first reroll never gets cheaper as waves rise');
+  }
+  assert.ok(rerollCost(20, 0) <= pitArrivalBonus(20), 'one late reroll stays inside the stop bonus');
 });

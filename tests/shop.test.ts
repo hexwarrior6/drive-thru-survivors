@@ -101,9 +101,63 @@ test('vehicle modules buy into their own slots, one each, priced as services', (
   assert.deepEqual(shop.slots[MODULE_SLOTS[0]]!.weaponId, 'M-drift');
 });
 
+test('reroll charges coins, swaps in unpurchased dishes and clears replacement state', () => {
+  const shop = setup();
+  const [burger, lemon, fries] = ['巨无霸', '柠檬红茶', '中薯条'].map(name => shop.store.products.find(p => p.name === name)!);
+  shop.offers = [burger!, lemon!, fries!];
+  const w = wallet(999);
+  assert.equal(shop.buy(0, w), 'bought');
+  assert.ok(shop.sold.has(0));
+  shop.pending = 1; shop.selected = 2; shop.pendingBranch = 'a';
+  assert.equal(shop.canReroll(), true);
+  const beforeRoll = w.money;
+  assert.equal(shop.rerollPrice(), 3);
+  assert.equal(shop.reroll(w), 'rolled');
+  assert.equal(w.money, beforeRoll - 3, 'reroll charges the wave-scaled price');
+  assert.equal(shop.rerollPrice(), 5, 'the next reroll at this stop costs more');
+  assert.equal(shop.offers.length, 3);
+  assert.equal(shop.sold.size, 0);
+  assert.equal(shop.pending, -1);
+  assert.equal(shop.selected, -1);
+  assert.equal(shop.pendingBranch, undefined);
+  assert.ok(!shop.offers.some(p => p.id === burger!.id), 'bought dish is excluded from reroll');
+  assert.ok(shop.offers.every(p => shop.store.products.includes(p)));
+  assert.ok(shop.offers.some(p => p.id !== lemon!.id && p.id !== fries!.id), 'reroll surfaces at least one new dish');
+});
+
+test('reroll refuses an empty wallet without changing the menu', () => {
+  const shop = setup();
+  const before = shop.offers.map(p => p.id);
+  const broke = wallet(2);
+  assert.equal(shop.rerollPrice(), 3);
+  assert.equal(shop.reroll(broke), 'unaffordable');
+  assert.equal(broke.money, 2);
+  assert.deepEqual(shop.offers.map(p => p.id), before);
+  assert.equal(shop.rerollPrice(), 3, 'a rejected reroll does not raise the price');
+});
+
+test('reroll price rises with the wave and repeated rolls', () => {
+  const shop = setup();
+  shop.open(10);
+  assert.equal(shop.rerollPrice(), 7);
+  assert.equal(shop.reroll(wallet(999)), 'rolled');
+  assert.equal(shop.rerollPrice(), 9);
+});
+
+test('reroll stops when every other priced dish is already on the table', () => {
+  const shop = setup();
+  shop.store = { ...shop.store, products: shop.offers.slice(0, 3) };
+  assert.equal(shop.canReroll(), false);
+  assert.equal(shop.reroll(wallet(999)), 'exhausted');
+  assert.equal(shop.offers.length, 3);
+});
+
 test('upgrade service backs up growth when no material dish is in this store', () => {
   const shop = setup();
-  shop.offers = [product('柠檬红茶')]; // 店里没有巨无霸
+  const lemon = shop.store.products.find(p => p.name === '柠檬红茶')!;
+  // 本店完整菜单只有柠檬红茶：巨无霸既不在三张卡里，也不在重投后备池里。
+  shop.store = { ...shop.store, products: [lemon] };
+  shop.offers = [lemon];
   const w = wallet(999);
   shop.slots[SLOT_FRONT] = { weaponId: 'W01', name: '巨无霸', level: 1, cooldown: 0, invested: 40, art: 'food-burger-double' };
   assert.equal(shop.lacksMaterial(shop.slots[SLOT_FRONT]!), true);
@@ -118,6 +172,16 @@ test('upgrade service backs up growth when no material dish is in this store', (
   assert.equal(shop.upgradeService(SLOT_FRONT, w), 'branch');
   assert.equal(shop.upgradeService(SLOT_FRONT, w, 'b'), 'bought');
   assert.equal(shop.slots[SLOT_FRONT]!.branch, 'b');
+});
+
+test('upgrade fallback reads the whole store menu, not just the three cards', () => {
+  const shop = setup();
+  const lemon = shop.store.products.find(p => p.name === '柠檬红茶')!;
+  shop.offers = [lemon]; // 巨无霸被重投换走，但本店仍备有这件升级材料。
+  shop.slots[SLOT_FRONT] = { weaponId: 'W01', name: '巨无霸', level: 1, cooldown: 0, invested: 40, art: 'food-burger-double' };
+  assert.equal(shop.lacksMaterial(shop.slots[SLOT_FRONT]!), false);
+  shop.store = { ...shop.store, products: [lemon] };
+  assert.equal(shop.lacksMaterial(shop.slots[SLOT_FRONT]!), true);
 });
 
 test('featured cards are all implemented exclusive weapons; generics only cover unknowns', () => {

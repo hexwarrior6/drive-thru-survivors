@@ -21,15 +21,23 @@ function slotArt(art: string): string {
 }
 function node(tag: string, text: string, className = ''): HTMLElement { const e = document.createElement(tag); e.textContent = text; e.className = className; return e; }
 export class ShopView {
-  private expandedMenu = false;
   private detail: { wid: string; productName: string; identityLabel: string; next: number; branch?: BranchId } | null = null;
   constructor(private readonly shop: ShopSystem, private readonly wallet: Wallet, private readonly reason: string, private readonly changed: () => void) {
-    document.getElementById('shop-detail-close')?.addEventListener('click', () => { this.detail = null; this.renderDetail(); });
-    document.getElementById('shop-detail')?.addEventListener('click', e => {
-      if (e.target === e.currentTarget) { this.detail = null; this.renderDetail(); }
-    });
+    const close = document.getElementById('shop-detail-close');
+    if (close) close.onclick = () => { this.detail = null; this.renderDetail(); };
+    const detailPanel = document.getElementById('shop-detail');
+    if (detailPanel) detailPanel.onclick = e => {
+      if (e.target === detailPanel) { this.detail = null; this.renderDetail(); }
+    };
+    const reroll = document.getElementById('shop-reroll') as HTMLButtonElement | null;
+    if (reroll) reroll.onclick = () => {
+      if (this.shop.reroll(this.wallet) !== 'rolled') return;
+      this.detail = null;
+      this.render();
+      this.changed();
+    };
   }
-  open(wave: number): void { this.shop.open(wave); this.expandedMenu = false; this.render(); }
+  open(wave: number): void { this.shop.open(wave); this.detail = null; this.render(); }
   private render(): void {
     const s = this.shop, w = this.wallet;
     document.getElementById('shop-source')!.textContent = this.reason + (s.store.referenceTime ? ' · 预约菜单参考 ' + s.store.referenceTime : '');
@@ -42,7 +50,6 @@ export class ShopView {
     campaign.textContent = s.snapshot.campaign;
     campaign.hidden = !s.snapshot.campaign;
     const cards = document.getElementById('shop-cards')!; cards.replaceChildren();
-    const menu = document.getElementById('menu-products')!; menu.replaceChildren();
     // 三张推荐卡只要有一张带推荐标签，就统一预留标签行，避免标题高低不齐。
     const featuredHighlight = s.offers.slice(0, 3).some(productHighlight);
     s.offers.forEach((p, i) => {
@@ -52,7 +59,7 @@ export class ShopView {
       const cost = s.price(p, level);
       const identity = identityFor(p.name, p.category);
       const generic = def.family === '通用';
-      const card = node('article', '', i < 3 ? 'food-card' : 'food-card menu-card');
+      const card = node('article', '', 'food-card');
       // 行式卡片：头图 | 餐品名+武器行 | 详情；规格全部收进弹层。
       const cardRow = node('div', '', 'food-card-row');
       const art = node('div', '', 'food-art'); art.innerHTML = productArt(identity.artGroup, p.name); cardRow.append(art);
@@ -98,12 +105,20 @@ export class ShopView {
         foot.append(button);
       }
       card.append(foot);
-      if (i < 3) cards.append(card); else menu.append(card);
+      cards.append(card);
     });
-    const details = document.getElementById('store-menu') as HTMLDetailsElement;
-    details.classList.toggle('hidden', s.offers.length <= 3); details.open = this.expandedMenu;
-    details.ontoggle = () => { this.expandedMenu = details.open; };
-    document.getElementById('menu-summary')!.textContent = `查看其他 ${Math.max(0, s.offers.length - 3)} 款餐品 · 共 ${s.offers.length} 款已核价`;
+    const rerollCost = s.rerollPrice();
+    const canReroll = s.canReroll();
+    const reroll = document.getElementById('shop-reroll') as HTMLButtonElement;
+    const affordable = w.money >= rerollCost;
+    const rerollHint = document.getElementById('shop-reroll-hint')!;
+    reroll.disabled = !canReroll || !affordable;
+    if (!canReroll) rerollHint.textContent = '暂无可换餐品';
+    else if (!affordable) rerollHint.innerHTML = `金币不足 · ${statIcon('coin', 11)}${rerollCost}`;
+    else rerollHint.innerHTML = `换一批 · ${statIcon('coin', 11)}${rerollCost} ↻`;
+    reroll.setAttribute('aria-label', canReroll
+      ? `重投菜单，需要 ${rerollCost} 金币，换一批已核价餐品`
+      : '重投菜单，暂无可换餐品');
     // ---- 游戏改装服务（§9.1）：免费前炮、车辆模块、无材料时的升阶兜底。 ----
     const services = document.getElementById('shop-services')!; services.replaceChildren();
     services.append(node('span', '改装服务', 'service-heading'));

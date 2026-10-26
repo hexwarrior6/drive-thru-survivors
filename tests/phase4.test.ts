@@ -245,6 +245,8 @@ function driveRun(snapshot = demoSnapshot(), seed = 20261026) {
   const shopVisit = () => {
     shop.open(wave.number);
     while (combat.health < 90 && combat.money >= shop.repairCost() + 6) { shop.repair(combat); repairs++; }
+    // 经济模拟按“完整菜单可见”的完美规划估算；付费重投的单独价格曲线由 balance/shop 测试覆盖。
+    shop.offers = [...shop.store.products];
     // 前槽：优先买得起实装专属（巨无霸→W01 等）；买不起才吃免费前炮服务（§4.2 保底）。
     if (shop.slots[0] === null) {
       const readyFront = shop.offers

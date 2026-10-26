@@ -11,8 +11,8 @@
  *
  * 经济 —— 击杀掉币面值不变，收入增长来自敌人密度（实测脚本局每波约
  * 45 → 250，Boss 波与终波是奖金高峰，全程约 3200-3900）；支出靠升阶定价
- * 曲线（同名升级按当前等级 ×1.8/2.8/4.2/6 放大，升满一件约 15.8 倍基础价）
- * 和递增的维修费挤压——每次进站只够办一两件大事。
+ * 曲线（同名升级按当前等级 ×1.8/2.8/4.2/6 放大，升满一件约 15.8 倍基础价）、
+ * 递增的维修费和重投菜单挤压——每次进站只够办一两件大事。
  */
 
 /** 每轮常规波数（含轮末 Boss 波）。 */
@@ -91,6 +91,15 @@ export function bossBurstCount(tier: number): number { return 22 + tier * 6; }
  */
 export function pitArrivalBonus(wave: number): number { return 8 + wave; }
 export function repairCost(wave: number): number { return 10 + (wave - 1) * 3; }
+
+/**
+ * 重投菜单：基础价随波次上涨，同一站每再投一次再加 2。
+ * 第 1 波 3/5/7/9，第 20 波 12/14/16/18；收入随敌人密度增长，
+ * 因此重投在中后期仍可负担，但连续重投是明确的额外支出。
+ */
+export function rerollCost(wave: number, used = 0): number {
+  return 2 + Math.ceil(wave / 2) + Math.max(0, used) * 2;
+}
 
 /**
  * 升阶定价：同名升级按当前等级放大基础价 —— 新购 ×1，之后 ×1.8/2.8/4.2/6。
