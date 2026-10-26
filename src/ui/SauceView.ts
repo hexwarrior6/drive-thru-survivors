@@ -36,6 +36,9 @@ export class SauceView {
     if (!offers.length) { done(); return; }
     const cards = document.getElementById('sauce-cards')!;
     cards.replaceChildren();
+    const countLabel = ['零', '一', '两', '三'][offers.length] ?? String(offers.length);
+    document.getElementById('sauce-reward-title')!.textContent = `窗口递来${countLabel}包酱料！`;
+    cards.style.setProperty('--sauce-cols', String(Math.min(offers.length, 3)));
     let settled = false;
     const finish = () => {
       if (settled) return;

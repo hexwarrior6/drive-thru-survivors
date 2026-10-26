@@ -27,7 +27,7 @@ import { AudioSynth } from '../effects/AudioSynth';
 import { ScreenShake } from '../effects/ScreenShake';
 import { TrackGenerator } from '../systems/TrackGenerator';
 import { MobileControls } from '../ui/MobileControls';
-import { updateSoundButton } from '../ui/UtilityControls';
+import { bindSoundButton, updateSoundButton } from '../ui/UtilityControls';
 import { HUD } from '../ui/HUD';
 import { getCarY, updateCarY } from '../ui/RaceLayout';
 import { clamp } from '../utils/math';
@@ -104,7 +104,8 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setScroll(0, 0).setZoom(1);
     const carDef = carById(this.registry.get('car'));
     this.carId = carDef.id;
-    const snapshot = this.registry.get('snapshot') ?? demoSnapshot();
+    const resume = this.registry.get('resumeData') as RunSave | undefined;
+    const snapshot = resume?.snapshot ?? this.registry.get('snapshot') ?? demoSnapshot();
     this.track = new TrackGenerator(this, resolveTrackPlan(snapshot.city));
     this.skid = this.add.graphics().setDepth(2);
     this.lines = this.add.graphics().setDepth(6);
@@ -116,7 +117,7 @@ export class GameScene extends Phaser.Scene {
     this.shop = new ShopSystem(snapshot);
     this.weapons = new WeaponSystem(this.shop.slots, this.combat);
     this.weaponView = new WeaponView(this, this.weapons, this.track.projection);
-    this.shopView = new ShopView(this.shop, this.combat, this.registry.get('snapshotReason') ?? '本地示例', () => this.hud.updateCombat(this.combat, this.wave));
+    this.shopView = new ShopView(this.shop, this.combat, this.registry.get('snapshotReason') ?? (resume ? '继续游戏 · 已保存菜单' : '本地示例'), () => this.hud.updateCombat(this.combat, this.wave));
     this.sauceView = new SauceView(this.combat, () => this.hud.updateCombat(this.combat, this.wave));
     this.pitView = new PitStopView(this, this.track.projection);
     this.theme = themeFor(snapshot.campaign);
@@ -126,7 +127,6 @@ export class GameScene extends Phaser.Scene {
     this.combat.ramSlow = carDef.ramSlow;
     this.combat.baseMagnetRange = carDef.magnetRange;
     this.combat.coinMultiplier = (1 + carDef.coinBonus) * (1 + this.theme.coinBonus);
-    const resume = this.registry.get('resumeData') as RunSave | undefined;
     this.registry.set('resumeData', undefined);
     if (import.meta.env.DEV && new URLSearchParams(location.search).get('preview') === 'pit') {
       this.wave.remaining = 2.8;
@@ -169,7 +169,7 @@ export class GameScene extends Phaser.Scene {
       this.persistRun(false);
       (document.activeElement as HTMLElement)?.blur();
     }, options);
-    this.soundButton.addEventListener('click', () => this.toggleMute(), options);
+    bindSoundButton(this.soundButton, this.registry, muted => { this.audio.unlock(); this.audio.setMuted(muted); });
     document.getElementById('reset')!.addEventListener('click', () => this.abandon(), options);
     document.getElementById('restart-bottom')!.addEventListener('click', () => this.abandon(), options);
     window.addEventListener('blur', () => { if (!this.paused && this.wave.state !== 'pit' && this.wave.state !== 'disabled') this.togglePause(); }, options);
@@ -223,6 +223,7 @@ export class GameScene extends Phaser.Scene {
       this.wave.cameraSide = PIT_CAMERA_SIDE;
       this.player.physics.x = this.player.physics.previousX = PIT_PLAYER_X;
       this.openPit();
+      this.shopView.restoreStop(run.stop);
     } else {
       this.wave.state = 'combat';
       this.wave.remaining = run.duration;
@@ -270,13 +271,16 @@ export class GameScene extends Phaser.Scene {
       sauces: this.combat.ownedSauces(), sauceWaves: [...this.sauceClaimedWaves],
       route: this.shop.route, bagIds: this.shop.bag.map(s => s.id),
       snapshot: this.shop.snapshot, savedAt: new Date().toISOString(),
+      stop: atPit && this.wave.state === 'pit' ? this.shop.stopState() : undefined,
     };
     saveRun(run);
   }
   private toggleMute(): void {
-    this.audio.unlock(); this.audio.setMuted(!this.audio.muted);
-    this.registry.set('muted', this.audio.muted);
-    updateSoundButton(this.soundButton, this.audio.muted);
+    this.audio.unlock();
+    const muted = this.registry.get('muted') !== true;
+    this.registry.set('muted', muted);
+    updateSoundButton(this.soundButton, muted);
+    this.audio.setMuted(muted);
   }
   private abandon(): void {
     clearRun(); this.finished = true;
@@ -289,11 +293,14 @@ export class GameScene extends Phaser.Scene {
     this.inputControls.clear(); this.audio.setPaused(this.paused);
     document.getElementById('pause-panel')!.classList.toggle('hidden', !this.paused);
     document.getElementById('drive-ui')!.classList.toggle('hidden', this.paused);
+    if (this.paused) document.getElementById('combat-tactic')!.hidden = true;
+    else this.hud.updateCombat(this.combat, this.wave);
     document.getElementById('pause')!.setAttribute('aria-label', this.paused ? '继续游戏' : '暂停游戏');
     document.getElementById('pause')!.setAttribute('aria-pressed', String(this.paused));
     document.querySelector('#pause .control-label')!.textContent = this.paused ? '继续' : '暂停';
     updateCarY(this.scale.height);
-    (document.activeElement as HTMLElement)?.blur();
+    if (this.paused) document.getElementById('resume')?.focus();
+    else (document.activeElement as HTMLElement)?.blur();
   }
   /** Hand the finished run to the settlement screen. */
   private finishRun(victory: boolean): void {

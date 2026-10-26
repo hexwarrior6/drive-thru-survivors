@@ -4,6 +4,7 @@ import { weaponById } from '../combat/weaponCatalog';
 import { bossName, bossTierOf } from '../systems/balance';
 import { recordRun, type HallEntry } from '../systems/SaveSystem';
 import type { SavedSlot } from '../systems/SaveSystem';
+import { bindSoundButton } from '../ui/UtilityControls';
 
 interface RunSummary {
   victory: boolean;
@@ -31,13 +32,16 @@ export class ResultScene extends Phaser.Scene {
     document.getElementById('pit-panel')!.classList.add('hidden');
     document.getElementById('drive-ui')!.classList.add('hidden');
     document.getElementById('pause-panel')!.classList.add('hidden');
+    const sound = document.getElementById('sound')!;
+    document.querySelector('.intro-brand')!.append(sound);
+    bindSoundButton(sound, this.registry);
     const summary = this.registry.get('runSummary') as RunSummary | undefined;
     const car = carById(summary?.car);
     const victory = summary?.victory ?? false;
     document.getElementById('result-tag')!.textContent = victory ? 'ROUTE COMPLETE' : 'ENGINE OFF';
     document.getElementById('result-heading')!.textContent = victory
       ? `第 ${summary!.wave} 波 · ${bossName(bossTierOf(summary!.wave))}击破，路线完成！`
-      : `第 ${summary?.wave ?? 1} 波 · 车况耗尽，就地停靠。`;
+      : `第 ${summary?.wave ?? 1} 波 · 车况耗尽，抛锚。`;
     const parts = summary?.slots ?? [];
     document.getElementById('result-build')!.replaceChildren(
       ...parts.map(w => {
@@ -66,7 +70,7 @@ export class ResultScene extends Phaser.Scene {
     if (newKills) marks.push('最多消灭');
     if (newCombo) marks.push('最高连击');
     const recordNote = document.getElementById('result-records')!;
-    recordNote.textContent = marks.length ? `🏆 新纪录 · ${marks.join(' / ')}` : `本地纪录 · 最远 ${(records.bestDistance / 1000).toFixed(2)} km · 最高连击 ${records.bestCombo}`;
+    recordNote.textContent = marks.length ? `新纪录 · ${marks.join(' / ')}` : `本地纪录 · 最远 ${(records.bestDistance / 1000).toFixed(2)} km · 最高连击 ${records.bestCombo}`;
     const hall = document.getElementById('result-hall')!;
     hall.replaceChildren(...records.hall.map((item, i) => {
       const row = document.createElement('li');

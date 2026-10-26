@@ -11,6 +11,8 @@ import {
 /** 五槽语义（§4.1）：[0] 前武器 · [1] 后武器 · [2..4] 车辆模块；酱料独立收藏不占槽。 */
 export interface EquippedWeapon { weaponId: string; name: string; level: number; cooldown: number; branch?: BranchId; invested: number; art: string }
 export interface Wallet { money: number; health: number }
+/** 停靠商店的瞬时状态：刷新页面后不应白送重投或重新上架已购餐品。 */
+export interface ShopStopState { offers: string[]; purchased: string[]; rerolls: number }
 export const SLOT_FRONT = 0;
 export const SLOT_REAR = 1;
 export const MODULE_SLOTS = [2, 3, 4];
@@ -78,6 +80,23 @@ export class ShopSystem {
   }
   /** 下一次重投的价格：随波次上涨，本次停靠每投一次再 +2。 */
   rerollPrice(): number { return rerollCostAt(this.wave, this.rerolls); }
+  /** 当前停靠状态，供进站存档使用。 */
+  stopState(): ShopStopState {
+    return { offers: this.offers.map(p => p.id), purchased: [...this.purchased], rerolls: this.rerolls };
+  }
+  /** 恢复进站状态：菜单、已购餐品与已付费的重投次数都要原样回来。 */
+  restoreStop(state: ShopStopState | undefined): void {
+    if (!state) return;
+    const byId = new Map(this.store.products.map(p => [p.id, p]));
+    const offers = state.offers.map(id => byId.get(id)).filter((p): p is Product => !!p);
+    if (offers.length >= 3) this.offers = offers.slice(0, 3);
+    this.purchased.clear();
+    for (const id of state.purchased) this.purchased.add(id);
+    this.rerolls = Math.max(0, state.rerolls);
+    this.sold.clear();
+    this.offers.forEach((p, i) => { if (this.purchased.has(p.id)) this.sold.add(i); });
+    this.pending = this.selected = -1; this.pendingBranch = undefined;
+  }
   /** 付费重投：换一批未购买的本店餐品，并取消未完成的替换选择。 */
   reroll(wallet: Wallet): 'rolled' | 'exhausted' | 'unaffordable' {
     const current = new Set(this.offers.map(p => p.id));

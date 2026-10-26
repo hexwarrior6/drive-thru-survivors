@@ -19,6 +19,7 @@ export class HUD {
   private drifts = get('drift-count'); private purples = get('purple-count');
   private boostButton = document.querySelector<HTMLButtonElement>('[data-drive="boost"]')!;
   private wave = get('wave-number'); private round = get('round-number'); private clock = get('wave-clock');
+  private goal = get('wave-goal');
   private clockValue = get('wave-clock-value'); private clockUnit = get('wave-clock-unit');
   private progress = get('wave-progress');
   private progressTrack = document.querySelector<HTMLElement>('.journey-progress')!;
@@ -46,6 +47,7 @@ export class HUD {
     const weather = weatherOf(w.round);
     if (weather.name !== this.lastWeather) { this.lastWeather = weather.name; this.weather.textContent = ` · ${weather.name}`; }
     this.wave.textContent = String(((w.number - 1) % WAVES_PER_ROUND) + 1).padStart(2, '0');
+    this.goal.hidden = w.state !== 'combat';
     const clock = w.state === 'combat' ? (w.isBossWave ? 'BOSS' : String(Math.ceil(w.remaining)))
       : w.state === 'countdown' ? '准备' : w.state === 'entering' ? '进站中' : w.state === 'exiting' ? '出站中'
       : w.state === 'bossdown' ? '击破！' : w.state === 'victory' ? '胜利！' : w.state === 'pit' ? '已停靠' : '已抛锚';

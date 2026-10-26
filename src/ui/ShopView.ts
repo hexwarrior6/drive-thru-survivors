@@ -2,7 +2,7 @@ import { productHighlight } from '../data/menuDiscovery';
 import { FOOD_DATA_URLS, variantKeyFor } from '../data/foodArt';
 import { weaponById, weaponStats, moduleById, MOUNT_NAMES, MODULES, type BranchId } from '../combat/weaponCatalog';
 import { identityFor } from '../combat/foodIdentity';
-import type { ShopSystem, Wallet } from '../systems/ShopSystem';
+import type { ShopStopState, ShopSystem, Wallet } from '../systems/ShopSystem';
 import { MAX_WEAPON_LEVEL } from '../systems/balance';
 import { statIcon } from './icons';
 /** Per-product art: the same baked variant texture the bullets use, as a data URL. */
@@ -38,6 +38,13 @@ export class ShopView {
     };
   }
   open(wave: number): void { this.shop.open(wave); this.detail = null; this.render(); }
+  /** 继续游戏时恢复停靠菜单、已购餐品和已付费的重投次数。 */
+  restoreStop(state: ShopStopState | undefined): void {
+    if (!state) return;
+    this.shop.restoreStop(state);
+    this.detail = null;
+    this.render();
+  }
   private render(): void {
     const s = this.shop, w = this.wallet;
     document.getElementById('shop-source')!.textContent = this.reason + (s.store.referenceTime ? ' · 预约菜单参考 ' + s.store.referenceTime : '');
@@ -45,7 +52,7 @@ export class ShopView {
     document.getElementById('shop-address')!.textContent = s.store.address;
     const coupon = document.getElementById('shop-coupon')!;
     coupon.classList.toggle('hidden', s.discount >= 1);
-    if (s.discount < 1) coupon.textContent = `🎫 ${s.couponTitle} · 本站特惠 ${Math.round(s.discount * 10)} 折，划线价为原价`;
+    if (s.discount < 1) coupon.textContent = `优惠券 · ${s.couponTitle} · 已按优惠价结算，划线价为原价`;
     const campaign = document.getElementById('pit-campaign')!;
     campaign.textContent = s.snapshot.campaign;
     campaign.hidden = !s.snapshot.campaign;
@@ -68,7 +75,9 @@ export class ShopView {
       if (highlight || (i < 3 && featuredHighlight)) cardMain.append(node('span', highlight, 'product-highlight'));
       cardMain.append(node('h3', p.name));
       // 卡面只留 武器名 · 挂载；专属身份在详情弹层交代（窄卡上是冗余噪声）。
-      const title = node('b', ''); title.innerHTML = `${generic ? '通用改装' : ''}${def.name} · ${MOUNT_NAMES[def.mount]}${next > 1 ? ` · Lv.${next}` : ''}`;
+      const title = node('b', '');
+      const titleText = generic ? `通用改装 · ${MOUNT_NAMES[def.mount]}` : `${def.name} · ${MOUNT_NAMES[def.mount]}`;
+      title.innerHTML = `${titleText}${next > 1 ? ` · Lv.${next}` : ''}`;
       cardMain.append(title);
       // 基础数值直接上卡面（首要一行）；完整规格与描述在详情弹层。
       const stats = node('div', '', 'food-card-stats');
@@ -216,16 +225,23 @@ export class ShopView {
     if (s.pending >= 0 && s.offers[s.pending]) {
       const p = s.offers[s.pending];
       const old = s.selected >= 0 ? s.slots[s.selected] : null;
-      const credit = s.selected >= 0 ? s.replacementCredit(s.selected) : 0;
-      const net = Math.max(1, s.price(p, s.equipped(p)?.level ?? 0) - credit);
-      const oldDef = old ? weaponById(old.weaponId) : null;
-      const losses: string[] = [];
-      if (old && old.level > 1) losses.push(`损失 Lv.${old.level}`);
-      if (old?.branch) losses.push(`损失分支「${oldDef?.branches?.find(b => b.id === old.branch)?.name ?? old.branch}」`);
       const note = document.getElementById('replacement-note')!;
-      note.textContent = `替换 ${oldDef?.name ?? ''}：抵扣 ${credit} · 净花费 ${net}${losses.length ? ' · ' + losses.join(' · ') : ''}`;
-      confirm.disabled = s.selected < 0 || w.money < net;
-      confirm.onclick = () => { s.buy(s.pending, w, s.selected, s.pendingBranch); this.render(); this.changed(); };
+      if (s.selected >= 0 && old) {
+        const credit = s.replacementCredit(s.selected);
+        const net = Math.max(1, s.price(p, s.equipped(p)?.level ?? 0) - credit);
+        const oldDef = weaponById(old.weaponId);
+        const losses: string[] = [];
+        if (old.level > 1) losses.push(`损失 Lv.${old.level}`);
+        if (old.branch) losses.push(`损失分支「${oldDef.branches?.find(b => b.id === old.branch)?.name ?? old.branch}」`);
+        note.textContent = `替换 ${old.name}：抵扣 ${credit} · 净花费 ${net}${losses.length ? ' · ' + losses.join(' · ') : ''}`;
+        note.classList.remove('hidden');
+        confirm.disabled = w.money < net;
+      } else {
+        note.textContent = '';
+        note.classList.add('hidden');
+        confirm.disabled = true;
+      }
+      confirm.onclick = () => { if (s.selected < 0) return; s.buy(s.pending, w, s.selected, s.pendingBranch); this.render(); this.changed(); };
     } else { confirm.disabled = true; }
     document.getElementById('cancel-replace')!.onclick = () => { s.pending = s.selected = -1; s.pendingBranch = undefined; this.render(); };
     const cost = s.repairCost();
@@ -244,13 +260,16 @@ export class ShopView {
     const branches = def.branches
       ? `<div class="codex-branches">${def.branches.map(b => `<span><b>Lv.3 ${b.name}</b>${b.note}</span>`).join('')}</div>`
       : '';
+    const identityLine = def.family === '通用'
+      ? `餐品身份：${identityLabel} · 通用改装 · ${MOUNT_NAMES[def.mount]}`
+      : `专属身份：${identityLabel} · ${def.family}家族 · ${MOUNT_NAMES[def.mount]}`;
     document.getElementById('shop-detail-body')!.innerHTML = `
       <div class="codex-detail-head">${weaponArt(def.artKey, identityFor(productName, 'main').artGroup, productName)}
         <div><h3>${productName}<small> → ${def.name}</small></h3>
         <p class="weapon-blurb">${def.blurb}</p></div>
       </div>${branches}
       <div class="shop-detail-stats"><i>Lv.${next}</i>${lines}</div>
-      <p class="codex-compat">专属身份：${identityLabel} · ${def.family}家族 · ${MOUNT_NAMES[def.mount]}</p>`;
+      <p class="codex-compat">${identityLine}</p>`;
     panel.classList.remove('hidden');
   }
 }

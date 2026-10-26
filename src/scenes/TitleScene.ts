@@ -3,7 +3,7 @@ import { randomStartingCity } from '../data/cities';
 import { CityCombobox } from '../ui/CityCombobox';
 import { loadSnapshot } from '../data/loadSnapshot';
 import { loadRecords, loadRun } from '../systems/SaveSystem';
-import { updateSoundButton } from '../ui/UtilityControls';
+import { bindSoundButton } from '../ui/UtilityControls';
 import { CodexView } from '../ui/CodexView';
 import { Player } from '../entities/Player';
 import { TrackGenerator } from '../systems/TrackGenerator';
@@ -23,7 +23,7 @@ export class TitleScene extends Phaser.Scene {
     document.getElementById('hud')!.classList.add('hidden');
     this.abort = new AbortController();
     const options = { signal: this.abort.signal };
-    new CodexView(); // 自装配：绑定标题屏的图鉴入口与弹层
+    CodexView.mount(); // 自装配：绑定标题屏的图鉴入口与弹层
     const start = document.getElementById('start') as HTMLButtonElement;
     const city = document.getElementById('destination-city') as HTMLInputElement;
     const dice = document.getElementById('random-city') as HTMLButtonElement;
@@ -44,6 +44,8 @@ export class TitleScene extends Phaser.Scene {
         resume.disabled = start.disabled = true;
         this.registry.set('car', saved.car);
         this.registry.set('resumeData', saved);
+        this.registry.set('snapshot', saved.snapshot);
+        this.registry.set('snapshotReason', '继续游戏 · 已保存菜单');
         document.getElementById('title')!.classList.add('hidden');
         this.scene.start('Game');
       };
@@ -72,12 +74,7 @@ export class TitleScene extends Phaser.Scene {
     }, options);
     const sound = document.getElementById('sound')!;
     document.querySelector('.intro-brand')!.append(sound);
-    updateSoundButton(sound, this.registry.get('muted') === true);
-    sound.addEventListener('click', () => {
-      const muted = this.registry.get('muted') !== true;
-      this.registry.set('muted', muted);
-      updateSoundButton(sound, muted);
-    }, options);
+    bindSoundButton(sound, this.registry);
     this.events.once('shutdown', () => this.abort?.abort());
   }
   update(time: number, delta: number): void {

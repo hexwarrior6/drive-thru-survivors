@@ -1,5 +1,6 @@
 import type { CarId } from '../data/cars';
 import type { Snapshot, Store } from '../data/snapshot';
+import type { ShopStopState } from './ShopSystem';
 import { identityForName } from '../combat/foodIdentity';
 import { weaponById } from '../combat/weaponCatalog';
 
@@ -32,6 +33,8 @@ export interface RunSave {
   route: Store[];
   bagIds: string[];
   snapshot: Snapshot;
+  /** 进站中的菜单/已购/重投状态；离站或旧存档可省略。 */
+  stop?: ShopStopState;
   savedAt: string;
 }
 export interface HallEntry {

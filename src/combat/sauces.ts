@@ -64,7 +64,7 @@ export const SAUCES: readonly SauceDef[] = [
     key: 'chili', label: '辣椒酱', tint: 0xd9553f,
     effect: `灼烧 · 直接命中附着 ${SAUCE.burnSeconds}s、每秒 ${Math.round(SAUCE.burnRate * 100)}% 命中伤害`,
     bound: '原生尾焰只获得有限的持续时间强化，不叠第二份灼烧',
-    targets: '全部直接命中 · 板烧炙烤尾焰（时长强化）',
+    targets: '全部直接命中武器 · 板烧炙烤尾焰（时长强化）',
   },
   {
     key: 'crema', label: '奶油咖啡酱', tint: 0xc9a77c,

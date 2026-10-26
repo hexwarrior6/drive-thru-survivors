@@ -29,14 +29,23 @@ function sauceCompat(def: WeaponDef): string {
  * 列表与商店卡片、实际开火读取同一份 catalog 定义。
  */
 export class CodexView {
+  private static instance: CodexView | null = null;
   private open_ = false;
   private family = 'all';
   private detailIndex = -1;
 
-  constructor() {
+  /** TitleScene is re-entered after runs; bind the shared DOM only once. */
+  static mount(): void {
+    if (!CodexView.instance) CodexView.instance = new CodexView();
+    else CodexView.instance.setOpen(false);
+  }
+
+  private constructor() {
     const panel = document.getElementById('codex-panel');
     const button = document.getElementById('codex-open');
     if (!panel || !button) return;
+    const count = WEAPONS.filter(w => w.family !== '服务' && w.family !== '通用').length;
+    button.textContent = `武器图鉴 · ${count} 件 ↗`;
     button.classList.remove('hidden');
     button.addEventListener('click', () => this.setOpen(true));
     document.getElementById('codex-close')?.addEventListener('click', () => this.setOpen(false));
@@ -47,7 +56,8 @@ export class CodexView {
     document.getElementById('codex-prev')?.addEventListener('click', () => this.stepDetail(-1));
     document.getElementById('codex-next')?.addEventListener('click', () => this.stepDetail(1));
     document.addEventListener('keydown', e => {
-      if (!this.open_ || !this.detailOpen()) return;
+      if (!this.open_) return;
+      if (!this.detailOpen()) { if (e.key === 'Escape') this.setOpen(false); return; }
       if (e.key === 'Escape') this.closeDetail();
       if (e.key === 'ArrowLeft') this.stepDetail(-1);
       if (e.key === 'ArrowRight') this.stepDetail(1);
@@ -116,14 +126,15 @@ export class CodexView {
     this.detailIndex = list.findIndex(w => w.id === id);
     const def = weaponById(id);
     const l = (icon: StatIcon, text: string) => `<span class="stat">${statIcon(icon)}${text}</span>`;
-    // 每行一条等级；用最大列数建网格，让各等级的属性列上下对齐（字宽不再影响）。
+    // 每行一条等级；窄屏用可换行布局，分支带来的额外属性不会横向溢出。
     const rows = [1, 2, 3, 4, 5].map(level => ({ level, lines: weaponStats(def.id, level, 'a') }));
-    const cols = Math.max(...rows.map(r => r.lines.length));
     const stats = rows.map(({ level, lines }) =>
-      `<div class="codex-level" style="grid-template-columns:32px repeat(${cols}, minmax(0,auto))">` +
-      `<i>Lv.${level}</i>` + lines.map(s2 => l(s2.icon, s2.text)).join('') + `</div>`).join('');
+      `<div class="codex-level"><i>Lv.${level}</i>${lines.map(s2 => l(s2.icon, s2.text)).join('')}</div>`).join('');
     const branches = def.branches
       ? `<div class="codex-branches">${def.branches.map(b => `<span><b>Lv.3 ${b.name}</b>${b.note}</span>`).join('')}</div>`
+      : '';
+    const branchNote = def.branches
+      ? `<p class="codex-branch-note">Lv.3+ 数值按分支 A「${def.branches[0].name}」展示；分支 B「${def.branches[1].name}」的差异见上方。</p>`
       : '';
     document.getElementById('codex-detail-body')!.innerHTML = `
       <div class="codex-detail-head">${artFor(def)}
@@ -131,7 +142,7 @@ export class CodexView {
         <p class="weapon-blurb">${def.blurb}</p></div>
       </div>
       ${branches}
-      <div class="codex-stats">${stats}</div>
+      <div class="codex-stats">${stats}</div>${branchNote}
       <p class="codex-compat">酱料兼容：${sauceCompat(def)}</p>`;
     document.getElementById('codex-pos')!.textContent = `${this.detailIndex + 1} / ${list.length}`;
     document.getElementById('codex-detail')?.classList.remove('hidden');

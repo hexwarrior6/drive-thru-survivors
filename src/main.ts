@@ -16,6 +16,12 @@ export const game = new Phaser.Game({
   scene: [BootScene, TitleScene, SelectScene, GameScene, ResultScene],
 });
 const disposeLayout = installRaceLayout(game);
+// The in-game keyboard handler owns M while driving; other screens share the sound button.
+document.addEventListener('keydown', e => {
+  if (e.code !== 'KeyM' || e.repeat || document.body.classList.contains('is-driving')) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  document.getElementById('sound')?.click();
+});
 if (import.meta.hot) import.meta.hot.dispose(() => { disposeLayout(); game.destroy(true); });
 // Development-only handle for scene-manager QA and test-harness injection; never shipped.
 if (import.meta.env.DEV) Object.defineProperty(window, '__game', { configurable: true, get: () => game });

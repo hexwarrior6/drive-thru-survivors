@@ -4,6 +4,7 @@ import { demoSnapshot } from '../data/snapshot';
 import { resolveTrackPlan } from '../data/cityProfiles';
 import { themeFor } from '../systems/Theme';
 import { clearRun } from '../systems/SaveSystem';
+import { bindSoundButton } from '../ui/UtilityControls';
 import { Player } from '../entities/Player';
 import { TrackGenerator } from '../systems/TrackGenerator';
 
@@ -34,6 +35,9 @@ export class SelectScene extends Phaser.Scene {
     const theme = themeFor(snapshot.campaign);
     document.getElementById('select-city')!.textContent = snapshot.city;
     document.getElementById('select-campaign')!.textContent = `${snapshot.campaign}${theme.note ? ` · ${theme.note}` : ''}`;
+    const sound = document.getElementById('sound')!;
+    document.querySelector('.intro-brand')!.append(sound);
+    bindSoundButton(sound, this.registry);
     this.abort = new AbortController();
     const options = { signal: this.abort.signal };
     const cards = document.querySelectorAll<HTMLButtonElement>('.car-card');

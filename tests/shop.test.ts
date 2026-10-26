@@ -144,6 +144,23 @@ test('reroll price rises with the wave and repeated rolls', () => {
   assert.equal(shop.rerollPrice(), 9);
 });
 
+test('a pit stop restores its menu, purchased dishes and paid reroll count', () => {
+  const shop = setup();
+  const w = wallet(999);
+  const [burger, lemon, fries] = ['巨无霸', '柠檬红茶', '中薯条'].map(name => shop.store.products.find(p => p.name === name)!);
+  shop.offers = [burger!, lemon!, fries!];
+  assert.equal(shop.buy(0, w), 'bought');
+  assert.equal(shop.reroll(w), 'rolled');
+  const state = shop.stopState();
+  const next = setup();
+  next.restoreStop(state);
+  assert.deepEqual(next.offers.map(p => p.id), state.offers, 'the same menu comes back after a reload');
+  assert.equal(next.rerollPrice(), 5, 'the second reroll at this stop still costs 5');
+  assert.equal(next.canReroll(), true);
+  assert.equal(next.reroll(wallet(999)), 'rolled');
+  assert.ok(!next.offers.some(p => p.id === burger!.id), 'a purchased dish never returns through a restored stop');
+});
+
 test('reroll stops when every other priced dish is already on the table', () => {
   const shop = setup();
   shop.store = { ...shop.store, products: shop.offers.slice(0, 3) };
