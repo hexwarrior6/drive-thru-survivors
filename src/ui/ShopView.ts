@@ -43,6 +43,8 @@ export class ShopView {
     campaign.hidden = !s.snapshot.campaign;
     const cards = document.getElementById('shop-cards')!; cards.replaceChildren();
     const menu = document.getElementById('menu-products')!; menu.replaceChildren();
+    // 三张推荐卡只要有一张带推荐标签，就统一预留标签行，避免标题高低不齐。
+    const featuredHighlight = s.offers.slice(0, 3).some(productHighlight);
     s.offers.forEach((p, i) => {
       const wid = s.weaponFor(p), def = weaponById(wid);
       const same = s.equipped(p), level = same?.level ?? 0;
@@ -51,12 +53,12 @@ export class ShopView {
       const identity = identityFor(p.name, p.category);
       const generic = def.family === '通用';
       const card = node('article', '', i < 3 ? 'food-card' : 'food-card menu-card');
-      const highlight = productHighlight(p);
-      if (highlight) card.append(node('span', highlight, 'product-highlight'));
       // 行式卡片：头图 | 餐品名+武器行 | 详情；规格全部收进弹层。
       const cardRow = node('div', '', 'food-card-row');
       const art = node('div', '', 'food-art'); art.innerHTML = productArt(identity.artGroup, p.name); cardRow.append(art);
       const cardMain = node('div', '', 'food-card-main');
+      const highlight = productHighlight(p);
+      if (highlight || (i < 3 && featuredHighlight)) cardMain.append(node('span', highlight, 'product-highlight'));
       cardMain.append(node('h3', p.name));
       // 卡面只留 武器名 · 挂载；专属身份在详情弹层交代（窄卡上是冗余噪声）。
       const title = node('b', ''); title.innerHTML = `${generic ? '通用改装' : ''}${def.name} · ${MOUNT_NAMES[def.mount]}${next > 1 ? ` · Lv.${next}` : ''}`;
@@ -65,15 +67,15 @@ export class ShopView {
       const stats = node('div', '', 'food-card-stats');
       stats.innerHTML = weaponStats(wid, next, same?.branch).slice(0, 1).map(st => `<span class="stat">${statIcon(st.icon)}${st.text}</span>`).join('');
       cardMain.append(stats);
-      cardRow.append(cardMain);
       const detailButton = node('button', '详情', 'card-detail-button') as HTMLButtonElement;
       detailButton.type = 'button';
+      detailButton.setAttribute('aria-label', `查看 ${p.name} 详情`);
       detailButton.addEventListener('click', () => { this.detail = { wid, productName: p.name, identityLabel: identity.label, next, branch: same?.branch }; this.renderDetail(); });
-      cardRow.append(detailButton);
+      cardMain.append(detailButton);
+      cardRow.append(cardMain);
       card.append(cardRow);
-      // 统一卡片脚部：详情 chip + 购买钮同排同高；Lv.3 待选时购买位显示分支按钮行。
+      // 卡片脚部只放一个主操作：购买或分支二选一，按钮宽度齐平。
       const foot = node('div', '', 'food-card-foot');
-      foot.append(detailButton);
       if (s.needsBranch(p) && !s.sold.has(i)) {
         const branches = node('div', '', 'branch-buttons');
         for (const b of def.branches ?? []) {
@@ -86,11 +88,11 @@ export class ShopView {
         }
         foot.append(branches);
       } else {
-        const button = node('button', '') as HTMLButtonElement;
+        const button = node('button', '', 'buy-button') as HTMLButtonElement;
         const discounted = s.discount < 1 && !s.sold.has(i) && level < MAX_WEAPON_LEVEL;
         if (s.sold.has(i)) button.textContent = '已购入';
         else if (level >= MAX_WEAPON_LEVEL) button.textContent = '已满阶';
-        else button.innerHTML = `<span>${same ? `升阶 Lv.${level + 1}` : '购买'}</span><span class="price">${discounted ? `<s>${s.listPrice(p, level)}</s>` : ''}${statIcon('coin', 11)}${cost}</span>`;
+        else button.innerHTML = `<span>${same ? '升阶' : '购买'}</span><span class="price">${discounted ? `<s>${s.listPrice(p, level)}</s>` : ''}${statIcon('coin', 11)}${cost}</span>`;
         button.disabled = s.sold.has(i) || level >= MAX_WEAPON_LEVEL || w.money < cost;
         button.addEventListener('click', () => { s.buy(i, w); this.render(); this.changed(); });
         foot.append(button);
@@ -141,7 +143,7 @@ export class ShopView {
       cell.title = '本店没有能喂养这件武器的餐品；用改装服务直接升阶。';
       cell.append(node('b', `${def.name} Lv.${weapon.level + 1}`));
       if (weapon.level + 1 === 3 && !weapon.branch && def.branches) {
-        cell.classList.add('span-all');
+        cell.classList.add('expanded');
         const branches = node('div', '', 'branch-buttons');
         for (const b of def.branches) {
           const button = node('button', '') as HTMLButtonElement;
